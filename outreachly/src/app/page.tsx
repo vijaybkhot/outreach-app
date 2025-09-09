@@ -1,103 +1,163 @@
-import Image from "next/image";
+"use client";
+import { Plus, Users, Mail, BarChart3, FileText } from "lucide-react";
 
-export default function Home() {
+// In a real app, this data would be fetched from your API
+const dashboardStats = {
+  totalContacts: 152,
+  campaignsSent: 12,
+  emailsSent: 430,
+  replyRate: "7.2%", // This would be calculated in your backend
+};
+
+const recentActivity = [
+  {
+    id: 1,
+    type: "campaign",
+    description: "Sent 'Java Backend Roles - Batch 2' to 10 contacts",
+    time: "2h ago",
+  },
+  {
+    id: 2,
+    type: "template",
+    description: "Created new template 'Next.js Follow-Up'",
+    time: "1d ago",
+  },
+  {
+    id: 3,
+    type: "contacts",
+    description: "Imported 45 contacts from 'FAANG_Recruiters.csv'",
+    time: "1d ago",
+  },
+  {
+    id: 4,
+    type: "campaign",
+    description: "Sent 'Java Backend Roles - Batch 1' to 20 contacts",
+    time: "3d ago",
+  },
+];
+
+export default function DashboardPage() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl">
+        {/* Header Section */}
+        <div className="flex flex-col gap-4 mb-8 md:flex-row md:items-center md:justify-between">
+          <div className="flex-auto">
+            <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">
+              Welcome back, Vijay!
+            </h1>
+            <p className="mt-2 text-lg text-gray-600">
+              Here is a snapshot of your job outreach progress.
+            </p>
+          </div>
+          <div className="flex-shrink-0">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            >
+              <Plus className="-ml-0.5 mr-2 h-5 w-5" aria-hidden="true" />
+              <span>Create New Campaign</span>
+            </button>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+
+        {/* Stat Cards Section */}
+        <div className="grid grid-cols-1 gap-5 mb-8 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            icon={Users}
+            title="Total Contacts"
+            value={dashboardStats.totalContacts}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+          <StatCard
+            icon={Mail}
+            title="Campaigns Sent"
+            value={dashboardStats.campaignsSent}
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
+          <StatCard
+            icon={FileText}
+            title="Total Emails Sent"
+            value={dashboardStats.emailsSent}
           />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <StatCard
+            icon={BarChart3}
+            title="Reply Rate"
+            value={dashboardStats.replyRate}
+            isPercentage={true}
+          />
+        </div>
+
+        {/* Recent Activity Section */}
+        <div>
+          <h2 className="mb-4 text-xl font-bold text-gray-900">
+            Recent Activity
+          </h2>
+          <div className="overflow-hidden shadow-lg bg-white/70 backdrop-blur-lg rounded-2xl ring-1 ring-black ring-opacity-5">
+            <ul role="list" className="divide-y divide-slate-200/50">
+              {recentActivity.map((activity) => (
+                <li
+                  key={activity.id}
+                  className="flex items-center justify-between px-6 py-4 transition-colors gap-x-6 hover:bg-black/5"
+                >
+                  <div className="flex items-center gap-x-4">
+                    <div className="flex-shrink-0">
+                      {/* Icon based on activity type */}
+                      {activity.type === "campaign" && (
+                        <Mail className="w-6 h-6 text-indigo-500" />
+                      )}
+                      {activity.type === "template" && (
+                        <FileText className="w-6 h-6 text-green-500" />
+                      )}
+                      {activity.type === "contacts" && (
+                        <Users className="w-6 h-6 text-blue-500" />
+                      )}
+                    </div>
+                    <p className="text-sm font-medium leading-6 text-gray-900">
+                      {activity.description}
+                    </p>
+                  </div>
+                  <p className="text-sm text-gray-500">{activity.time}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// A reusable component for the statistics cards
+function StatCard({
+  icon: Icon,
+  title,
+  value,
+  isPercentage = false,
+}: {
+  icon: React.ElementType;
+  title: string;
+  value: string | number;
+  isPercentage?: boolean;
+}) {
+  return (
+    <div className="relative p-5 overflow-hidden shadow-lg rounded-2xl bg-white/70 backdrop-blur-lg ring-1 ring-black ring-opacity-5">
+      <div className="flex items-center">
+        <div className="flex-shrink-0">
+          <div className="p-3 rounded-md bg-indigo-500/20">
+            <Icon className="w-6 h-6 text-indigo-600" aria-hidden="true" />
+          </div>
+        </div>
+        <div className="flex-1 w-0 ml-5">
+          <dl>
+            <dt className="text-sm font-medium text-gray-500 truncate">
+              {title}
+            </dt>
+            <dd className="text-3xl font-bold tracking-tight text-gray-900">
+              {value}
+              {isPercentage ? "" : ""}
+            </dd>
+          </dl>
+        </div>
+      </div>
     </div>
   );
 }

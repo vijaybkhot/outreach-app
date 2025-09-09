@@ -1,0 +1,60 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // This tells Prisma to use the URL from your Vercel Postgres setup
+  url      = env("PRISMA_DATABASE_URL") 
+}
+
+model Contact {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  firstName String
+  lastName  String?
+  company   String?
+  tags      String[]
+  createdAt DateTime @default(now())
+
+  campaigns CampaignRecipient[]
+}
+
+model Template {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  subject   String
+  body      String   @db.Text // Use Text for potentially long email bodies
+  createdAt DateTime @default(now())
+
+  campaigns Campaign[]
+}
+
+model Campaign {
+  id        Int      @id @default(autoincrement())
+  name      String
+  status    String   @default("Draft") // e.g., Draft, Sent
+  createdAt DateTime @default(now())
+  
+  templateId Int
+  template   Template @relation(fields: [templateId], references: [id])
+
+  recipients CampaignRecipient[]
+}
+
+// This is a "join table" to handle the many-to-many relationship
+// between Campaigns and Contacts. It also stores the status per recipient.
+model CampaignRecipient {
+  status     String   @default("Scheduled") // e.g., Scheduled, Sent, Replied
+
+  // Relations
+  campaignId Int
+  contactId  Int
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  contact    Contact  @relation(fields: [contactId], references: [id])
+
+  // Composite primary key to ensure a contact is only in a campaign once
+  @@id([campaignId, contactId])
+}
