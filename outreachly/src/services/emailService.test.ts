@@ -1,5 +1,5 @@
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
-import { EmailService } from "../src/services/emailService";
+import { EmailService } from "./emailService";
 
 jest.mock("@aws-sdk/client-sesv2");
 

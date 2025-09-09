@@ -97,9 +97,9 @@ export function ImportCSVModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-75 transition-opacity flex items-center justify-center p-4">
-      <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
-        <div className="flex justify-between items-center pb-4 border-b border-gray-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto transition-opacity bg-gray-900 bg-opacity-75">
+      <div className="relative w-full max-w-lg p-6 bg-white rounded-lg shadow-xl">
+        <div className="flex items-center justify-between pb-4 border-b border-gray-200">
           <h3 className="text-xl font-semibold text-gray-900">
             Import Contacts from CSV
           </h3>
@@ -118,16 +118,23 @@ export function ImportCSVModal({
             <a
               href="/sample.csv"
               download
-              className="text-indigo-600 hover:underline ml-2 flex items-center gap-1"
+              className="flex items-center gap-1 ml-2 text-indigo-600 hover:underline"
             >
               <FileText size={16} /> Download Sample CSV
             </a>
           </p>
+          <label
+            htmlFor="csvFileInput"
+            className="block mt-4 text-sm font-medium text-gray-700"
+          >
+            Upload a CSV file
+          </label>
           <input
+            id="csvFileInput"
             type="file"
             accept=".csv"
             onChange={handleFileChange}
-            className="mt-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+            className="block w-full mt-2 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
           />
           {file && (
             <p className="mt-2 text-sm text-gray-700">
@@ -135,11 +142,11 @@ export function ImportCSVModal({
             </p>
           )}
         </div>
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-gray-200">
+        <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-gray-200">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-gray-200 text-gray-800 hover:bg-gray-300 rounded-md"
+            className="px-4 py-2 text-gray-800 bg-gray-200 rounded-md hover:bg-gray-300"
           >
             Cancel
           </button>
@@ -147,7 +154,7 @@ export function ImportCSVModal({
             type="button"
             onClick={handleImport}
             disabled={!file || isLoading}
-            className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? "Importing..." : "Import"}
           </button>

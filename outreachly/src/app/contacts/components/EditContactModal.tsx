@@ -1,50 +1,51 @@
 "use client";
-import { useState, FormEvent, Fragment } from "react";
+import { useState, useEffect, FormEvent, Fragment } from "react";
 import { Transition, Dialog } from "@headlessui/react";
 import { X } from "lucide-react";
+import { Contact } from "../page"; // Import the Contact type
 
-// Define props for the modal
-interface AddContactModalProps {
+// Define the props for the modal
+interface EditContactModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onContactAdded: () => void;
+  contact: Contact; // The contact data to pre-fill the form
+  onContactUpdated: () => void;
 }
 
-export function AddContactModal({
+export function EditContactModal({
   isOpen,
   onClose,
-  onContactAdded,
-}: AddContactModalProps) {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [company, setCompany] = useState("");
-  const [tags, setTags] = useState("");
+  contact,
+  onContactUpdated,
+}: EditContactModalProps) {
+  // Initialize state with the contact's current data
+  const [firstName, setFirstName] = useState(contact.firstName);
+  const [lastName, setLastName] = useState(contact.lastName);
+  const [email, setEmail] = useState(contact.email);
+  const [company, setCompany] = useState(contact.company);
+  const [tags, setTags] = useState(contact.tags.join(", ")); // Join tags array into a string for the input
   const [isLoading, setIsLoading] = useState(false);
 
-  const resetForm = () => {
-    setFirstName("");
-    setLastName("");
-    setEmail("");
-    setCompany("");
-    setTags("");
-    setIsLoading(false);
-  };
-
-  const handleClose = () => {
-    resetForm();
-    onClose();
-  };
+  // This useEffect ensures the form updates if a different contact is selected
+  // while the modal is already open (though unlikely in this UI, it's good practice).
+  useEffect(() => {
+    setFirstName(contact.firstName);
+    setLastName(contact.lastName);
+    setEmail(contact.email);
+    setCompany(contact.company);
+    setTags(contact.tags.join(", "));
+  }, [contact]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!firstName.trim() || !email.trim()) {
-      alert("First Name and Email are required fields.");
-      return; // Stop the function here
+    if (!firstName || !email) {
+      window.alert("First Name and Email are required fields.");
+      return;
     }
 
     setIsLoading(true);
-    const newContact = {
+
+    const updatedData = {
       firstName,
       lastName,
       email,
@@ -56,33 +57,34 @@ export function AddContactModal({
     };
 
     try {
-      const response = await fetch("/api/contacts", {
-        method: "POST",
+      const response = await fetch(`/api/contacts/${contact.id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newContact),
+        body: JSON.stringify(updatedData),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to add contact");
+        throw new Error(errorData.error || "Failed to update contact");
       }
 
-      onContactAdded();
-      handleClose();
+      onContactUpdated(); // Signal parent to re-fetch and update the UI
+      onClose(); // Close the modal
     } catch (error: unknown) {
       console.error(error);
-      let errorMessage = "Error adding contact";
+      let message = "Error updating contact.";
       if (error instanceof Error) {
-        errorMessage = error.message;
+        message = `Error updating contact: ${error.message}`;
       }
-      alert(`Error adding contact: ${errorMessage}`);
+      alert(message);
+    } finally {
       setIsLoading(false);
     }
   };
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={handleClose}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -113,10 +115,10 @@ export function AddContactModal({
                     as="h3"
                     className="text-xl font-semibold leading-6 text-slate-800"
                   >
-                    Add New Contact
+                    Edit Contact
                   </Dialog.Title>
                   <button
-                    onClick={handleClose}
+                    onClick={onClose}
                     className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                   >
                     <X size={24} />
@@ -126,76 +128,74 @@ export function AddContactModal({
                 <form onSubmit={handleSubmit} className="mt-4 space-y-4">
                   <div>
                     <label
-                      htmlFor="firstName"
+                      htmlFor="firstNameEdit"
                       className="block text-sm font-medium text-slate-700"
                     >
                       First Name*
                     </label>
                     <input
                       type="text"
-                      id="firstName"
+                      id="firstNameEdit"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      required
                       className="block w-full mt-1 rounded-md border-slate-300/70 bg-white/50 text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500"
                     />
                   </div>
                   <div>
                     <label
-                      htmlFor="lastName"
+                      htmlFor="lastNameEdit"
                       className="block text-sm font-medium text-slate-700"
                     >
                       Last Name
                     </label>
                     <input
                       type="text"
-                      id="lastName"
-                      value={lastName}
+                      id="lastNameEdit"
+                      value={lastName || ""}
                       onChange={(e) => setLastName(e.target.value)}
                       className="block w-full mt-1 rounded-md border-slate-300/70 bg-white/50 text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500"
                     />
                   </div>
                   <div>
                     <label
-                      htmlFor="email"
+                      htmlFor="emailEdit"
                       className="block text-sm font-medium text-slate-700"
                     >
                       Email*
                     </label>
                     <input
                       type="email"
-                      id="email"
+                      id="emailEdit"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      required
                       className="block w-full mt-1 rounded-md border-slate-300/70 bg-white/50 text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500"
                     />
                   </div>
                   <div>
                     <label
-                      htmlFor="company"
+                      htmlFor="companyEdit"
                       className="block text-sm font-medium text-slate-700"
                     >
                       Company
                     </label>
                     <input
                       type="text"
-                      id="company"
-                      value={company}
+                      id="companyEdit"
+                      value={company || ""}
                       onChange={(e) => setCompany(e.target.value)}
                       className="block w-full mt-1 rounded-md border-slate-300/70 bg-white/50 text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500"
                     />
                   </div>
                   <div>
                     <label
-                      htmlFor="tags"
+                      htmlFor="tagsEdit"
                       className="block text-sm font-medium text-slate-700"
                     >
                       Tags (comma-separated)
                     </label>
                     <input
                       type="text"
-                      id="tags"
+                      id="tagsEdit"
                       value={tags}
                       onChange={(e) => setTags(e.target.value)}
                       className="block w-full mt-1 rounded-md border-slate-300/70 bg-white/50 text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500"
@@ -205,7 +205,7 @@ export function AddContactModal({
                   <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-slate-300/50">
                     <button
                       type="button"
-                      onClick={handleClose}
+                      onClick={onClose}
                       className="px-4 py-2 rounded-md shadow-sm bg-slate-200/70 text-slate-800 hover:bg-slate-300/90"
                     >
                       Cancel
@@ -215,7 +215,7 @@ export function AddContactModal({
                       disabled={isLoading}
                       className="px-4 py-2 text-white bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isLoading ? "Saving..." : "Save Contact"}
+                      {isLoading ? "Saving..." : "Save Changes"}
                     </button>
                   </div>
                 </form>
