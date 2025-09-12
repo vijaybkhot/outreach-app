@@ -1,50 +1,22 @@
 "use client";
-import { useState } from "react";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Archive, ArchiveRestore } from "lucide-react";
+import { Contact } from "@prisma/client";
 
-type Contact = {
-  id: number;
-  firstName: string;
-  lastName: string | null;
-  email: string;
-  company: string | null;
-  tags: string[];
-};
 interface ContactsTableProps {
   contacts: Contact[];
   onEdit: (contact: Contact) => void;
   onDelete: (contactId: number) => void;
+  onArchive: (contactId: number, archived: boolean) => void;
 }
 
 export function ContactsTable({
   contacts,
   onEdit,
   onDelete,
+  onArchive,
 }: ContactsTableProps) {
-  const [searchTerm, setSearchTerm] = useState("");
-
-  const filteredContacts = contacts.filter((contact) => {
-    const search = searchTerm.toLowerCase();
-    return (
-      contact.firstName.toLowerCase().includes(search) ||
-      (contact.lastName ?? "").toLowerCase().includes(search) ||
-      contact.email.toLowerCase().includes(search) ||
-      (contact.company ?? "").toLowerCase().includes(search) ||
-      contact.tags.some((tag) => tag.toLowerCase().includes(search))
-    );
-  });
-
   return (
     <div>
-      <div className="p-4 sm:p-6">
-        <input
-          type="text"
-          placeholder="Search contacts..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="block w-full py-2 pl-4 pr-10 rounded-md border-slate-300/70 bg-white/50 text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-        />
-      </div>
       <div className="overflow-x-auto">
         <div className="inline-block min-w-full align-middle">
           <table className="min-w-full divide-y divide-slate-300/20">
@@ -68,17 +40,25 @@ export function ContactsTable({
                 >
                   Tags
                 </th>
+                <th
+                  scope="col"
+                  className="px-3 py-3.5 text-left text-sm font-semibold text-slate-800"
+                >
+                  Status
+                </th>
                 <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>
             </thead>
             <tbody className="bg-transparent divide-y divide-slate-200/50">
-              {filteredContacts.length > 0 ? (
-                filteredContacts.map((contact) => (
+              {contacts.length > 0 ? (
+                contacts.map((contact) => (
                   <tr
                     key={contact.id}
-                    className="transition-colors duration-200 hover:bg-black/5"
+                    className={`transition-colors duration-200 hover:bg-black/5 ${
+                      contact.archived ? "opacity-60" : ""
+                    }`}
                   >
                     <td className="py-4 pl-4 pr-3 text-sm whitespace-nowrap sm:pl-6">
                       <div className="font-medium text-slate-900">
@@ -101,17 +81,47 @@ export function ContactsTable({
                         ))}
                       </div>
                     </td>
+                    <td className="px-3 py-4 text-sm whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                          contact.archived
+                            ? "bg-gray-100 text-gray-800"
+                            : "bg-green-100 text-green-800"
+                        }`}
+                      >
+                        {contact.archived ? "Archived" : "Active"}
+                      </span>
+                    </td>
                     <td className="relative py-4 pl-3 pr-4 text-sm font-medium text-right whitespace-nowrap sm:pr-6">
                       <div className="flex justify-end gap-x-2">
                         <button
                           onClick={() => onEdit(contact)}
                           className="p-1 transition-colors rounded-full text-slate-400 hover:text-indigo-600 hover:bg-slate-200/50"
+                          title="Edit contact"
                         >
                           <Edit size={18} />
                         </button>
                         <button
+                          onClick={() =>
+                            onArchive(contact.id, !contact.archived)
+                          }
+                          className="p-1 transition-colors rounded-full text-slate-400 hover:text-orange-600 hover:bg-slate-200/50"
+                          title={
+                            contact.archived
+                              ? "Restore contact"
+                              : "Archive contact"
+                          }
+                        >
+                          {contact.archived ? (
+                            <ArchiveRestore size={18} />
+                          ) : (
+                            <Archive size={18} />
+                          )}
+                        </button>
+                        <button
                           onClick={() => onDelete(contact.id)}
                           className="p-1 transition-colors rounded-full text-slate-400 hover:text-red-600 hover:bg-slate-200/50"
+                          title="Delete contact"
                         >
                           <Trash2 size={18} />
                         </button>
@@ -121,7 +131,7 @@ export function ContactsTable({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-slate-500">
+                  <td colSpan={5} className="py-8 text-center text-slate-500">
                     No contacts found.
                   </td>
                 </tr>

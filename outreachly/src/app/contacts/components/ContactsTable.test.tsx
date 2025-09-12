@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ContactsTable } from "./ContactsTable";
-import { Contact } from "../page";
+import { Contact } from "@prisma/client";
 
 // Mock data for our tests, including a contact with null values
 const mockContacts: Contact[] = [
@@ -11,6 +11,8 @@ const mockContacts: Contact[] = [
     email: "alice@example.com",
     company: "Innovate LLC",
     tags: ["Recruiter"],
+    archived: false,
+    createdAt: new Date(),
   },
   {
     id: 2,
@@ -19,6 +21,8 @@ const mockContacts: Contact[] = [
     email: "bob@example.com",
     company: "Tech Corp",
     tags: ["Engineer"],
+    archived: false,
+    createdAt: new Date(),
   },
   {
     id: 3,
@@ -27,6 +31,8 @@ const mockContacts: Contact[] = [
     email: "charlie@example.com",
     company: null,
     tags: ["Hiring Manager"],
+    archived: true,
+    createdAt: new Date(),
   },
 ];
 
@@ -34,25 +40,28 @@ describe("ContactsTable", () => {
   // Mock handler functions
   const mockOnEdit = jest.fn();
   const mockOnDelete = jest.fn();
+  const mockOnArchive = jest.fn();
 
   beforeEach(() => {
     // Reset mocks before each test
     mockOnEdit.mockClear();
     mockOnDelete.mockClear();
+    mockOnArchive.mockClear();
   });
 
-  it("should render all contacts when the search term is empty", () => {
+  it("should render all contacts", () => {
     render(
       <ContactsTable
         contacts={mockContacts}
         onEdit={mockOnEdit}
         onDelete={mockOnDelete}
+        onArchive={mockOnArchive}
       />
     );
 
-    // Check if all three contacts are rendered
+    // Check if contacts are rendered (using more flexible matchers)
     expect(screen.getByText("Alice Johnson")).toBeInTheDocument();
-    expect(screen.getByText("Bob")).toBeInTheDocument(); // Checks for first name
+    expect(screen.getByText("Bob")).toBeInTheDocument(); // Only first name since lastName is null
     expect(screen.getByText("Charlie Davis")).toBeInTheDocument();
   });
 
@@ -62,41 +71,10 @@ describe("ContactsTable", () => {
         contacts={[]}
         onEdit={mockOnEdit}
         onDelete={mockOnDelete}
+        onArchive={mockOnArchive}
       />
     );
     expect(screen.getByText("No contacts found.")).toBeInTheDocument();
-  });
-
-  it("should filter contacts by first name", () => {
-    render(
-      <ContactsTable
-        contacts={mockContacts}
-        onEdit={mockOnEdit}
-        onDelete={mockOnDelete}
-      />
-    );
-    const searchInput = screen.getByPlaceholderText("Search contacts...");
-
-    fireEvent.change(searchInput, { target: { value: "Alice" } });
-
-    expect(screen.getByText("Alice Johnson")).toBeInTheDocument();
-    expect(screen.queryByText("Bob")).not.toBeInTheDocument();
-  });
-
-  it("should filter contacts by company, including those with null values", () => {
-    render(
-      <ContactsTable
-        contacts={mockContacts}
-        onEdit={mockOnEdit}
-        onDelete={mockOnDelete}
-      />
-    );
-    const searchInput = screen.getByPlaceholderText("Search contacts...");
-
-    fireEvent.change(searchInput, { target: { value: "Tech Corp" } });
-
-    expect(screen.getByText("Bob")).toBeInTheDocument();
-    expect(screen.queryByText("Alice Johnson")).not.toBeInTheDocument();
   });
 
   it("should call onEdit with the correct contact when the edit button is clicked", () => {
@@ -105,14 +83,13 @@ describe("ContactsTable", () => {
         contacts={mockContacts}
         onEdit={mockOnEdit}
         onDelete={mockOnDelete}
+        onArchive={mockOnArchive}
       />
     );
 
-    // Find the edit button in the row for Alice Johnson
-    const aliceRow = screen.getByText("Alice Johnson").closest("tr");
-    const editButton = aliceRow!.querySelector("button:nth-of-type(1)"); // The first button is Edit
-
-    fireEvent.click(editButton!);
+    // Find the edit button by title attribute
+    const editButtons = screen.getAllByTitle("Edit contact");
+    fireEvent.click(editButtons[0]); // Click the first edit button (Alice's)
 
     expect(mockOnEdit).toHaveBeenCalledTimes(1);
     expect(mockOnEdit).toHaveBeenCalledWith(mockContacts[0]); // Check it was called with Alice's data
@@ -124,15 +101,47 @@ describe("ContactsTable", () => {
         contacts={mockContacts}
         onEdit={mockOnEdit}
         onDelete={mockOnDelete}
+        onArchive={mockOnArchive}
       />
     );
 
-    const bobRow = screen.getByText("Bob").closest("tr");
-    const deleteButton = bobRow!.querySelector("button:nth-of-type(2)"); // The second button is Delete
-
-    fireEvent.click(deleteButton!);
+    // Find the delete button by title attribute
+    const deleteButtons = screen.getAllByTitle("Delete contact");
+    fireEvent.click(deleteButtons[1]); // Click the second delete button (Bob's)
 
     expect(mockOnDelete).toHaveBeenCalledTimes(1);
     expect(mockOnDelete).toHaveBeenCalledWith(2); // Check it was called with Bob's ID (2)
+  });
+
+  it("should call onArchive with the correct parameters when archive button is clicked", () => {
+    render(
+      <ContactsTable
+        contacts={mockContacts}
+        onEdit={mockOnEdit}
+        onDelete={mockOnDelete}
+        onArchive={mockOnArchive}
+      />
+    );
+
+    // Find the archive button by title attribute
+    const archiveButtons = screen.getAllByTitle("Archive contact");
+    fireEvent.click(archiveButtons[0]); // Click the first archive button (Alice's)
+
+    expect(mockOnArchive).toHaveBeenCalledTimes(1);
+    expect(mockOnArchive).toHaveBeenCalledWith(1, true); // Archive Alice (id: 1, archived: true)
+  });
+
+  it("should show restore button for archived contacts", () => {
+    render(
+      <ContactsTable
+        contacts={mockContacts}
+        onEdit={mockOnEdit}
+        onDelete={mockOnDelete}
+        onArchive={mockOnArchive}
+      />
+    );
+
+    // Charlie is archived, so should show restore button
+    expect(screen.getByTitle("Restore contact")).toBeInTheDocument();
   });
 });

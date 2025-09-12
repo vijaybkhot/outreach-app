@@ -2,7 +2,7 @@
 import { useState, useEffect, FormEvent, Fragment } from "react";
 import { Transition, Dialog } from "@headlessui/react";
 import { X } from "lucide-react";
-import { Contact } from "../page"; // Import the Contact type
+import { Contact } from "@prisma/client";
 
 // Define the props for the modal
 interface EditContactModalProps {

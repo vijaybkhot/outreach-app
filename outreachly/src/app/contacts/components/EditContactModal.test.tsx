@@ -27,11 +27,19 @@ const mockContact: Contact = {
 };
 
 describe("EditContactModal", () => {
+  let alertSpy: jest.SpyInstance; // Declare it here so it's accessible in beforeEach/afterEach
+
   beforeEach(() => {
     (global.fetch as jest.Mock).mockClear();
-    jest.clearAllMocks();
+    jest.clearAllMocks(); // Clears all mocks, including spied on functions
+    // Spy on alert and mock its implementation before each test
+    alertSpy = jest.spyOn(window, "alert").mockImplementation(() => {});
   });
-  const alertSpy = jest.spyOn(window, "alert").mockImplementation(() => {});
+
+  afterEach(() => {
+    alertSpy.mockRestore(); // Restore the original window.alert after each test
+  });
+
   it("should render the form pre-filled with contact data", () => {
     render(
       <EditContactModal
@@ -87,11 +95,12 @@ describe("EditContactModal", () => {
       expect(mockOnContactUpdated).toHaveBeenCalledTimes(1);
       expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
+    // alertSpy is not called here, which is expected for a successful submission.
+    // The spy is still active but not asserted for this specific test.
   });
 
-  // THIS IS THE FINAL FIX
   it("should prevent submission if a required field is cleared", async () => {
-    const alertSpy = jest.spyOn(window, "alert").mockImplementation(() => {});
+    // alertSpy is already defined and active from beforeEach
     render(
       <EditContactModal
         isOpen={true}
@@ -101,7 +110,6 @@ describe("EditContactModal", () => {
       />
     );
 
-    // Clear both required fields if needed
     const firstNameInput = screen.getByLabelText(/First Name/i);
     const emailInput = screen.getByLabelText(/Email/i);
 
@@ -120,6 +128,6 @@ describe("EditContactModal", () => {
     });
 
     expect(global.fetch).not.toHaveBeenCalled();
-    alertSpy.mockRestore();
+    // No need to call alertSpy.mockRestore() here; afterEach will handle it.
   });
 });

@@ -5,21 +5,15 @@ import { ContactsTable } from "./components/ContactsTable";
 import { AddContactModal } from "./components/AddContactModal";
 import { ImportCSVModal } from "./components/ImportCSVModal";
 import { EditContactModal } from "./components/EditContactModal";
-
-export type Contact = {
-  id: number;
-  firstName: string;
-  lastName: string | null;
-  email: string;
-  company: string | null;
-  tags: string[];
-};
+import { Contact } from "@prisma/client";
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isAddModalOpen, setAddModalOpen] = useState(false);
   const [isImportModalOpen, setImportModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // State for the edit modal
   const [isEditModalOpen, setEditModalOpen] = useState(false);
@@ -39,10 +33,8 @@ export default function ContactsPage() {
         if (!response.ok) {
           throw new Error("Failed to delete contact");
         }
-        // Remove the contact from the local state to update the UI instantly
-        setContacts((prevContacts) =>
-          prevContacts.filter((c) => c.id !== contactId)
-        );
+        // Refresh contacts after deletion
+        fetchContacts();
       } catch (error) {
         console.error(error);
         alert("Error deleting contact.");
@@ -50,10 +42,39 @@ export default function ContactsPage() {
     }
   };
 
+  const handleArchiveContact = async (contactId: number, archived: boolean) => {
+    try {
+      const response = await fetch(`/api/contacts/${contactId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update contact archive status");
+      }
+      // Refresh contacts after archive status change
+      fetchContacts();
+    } catch (error) {
+      console.error(error);
+      alert("Error updating contact archive status.");
+    }
+  };
+
   const fetchContacts = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/contacts");
+      const params = new URLSearchParams();
+      if (includeArchived) {
+        params.set("includeArchived", "true");
+      }
+      if (searchTerm.trim()) {
+        params.set("search", searchTerm.trim());
+      }
+
+      const url = `/api/contacts${
+        params.toString() ? `?${params.toString()}` : ""
+      }`;
+      const response = await fetch(url);
       const data = await response.json();
       setContacts(data);
     } catch (error) {
@@ -63,8 +84,53 @@ export default function ContactsPage() {
     }
   };
 
+  // Debounced search effect
   useEffect(() => {
-    fetchContacts();
+    const timeoutId = setTimeout(() => {
+      const performFetch = async () => {
+        setIsLoading(true);
+        try {
+          const params = new URLSearchParams();
+          if (includeArchived) {
+            params.set("includeArchived", "true");
+          }
+          if (searchTerm.trim()) {
+            params.set("search", searchTerm.trim());
+          }
+
+          const url = `/api/contacts${
+            params.toString() ? `?${params.toString()}` : ""
+          }`;
+          const response = await fetch(url);
+          const data = await response.json();
+          setContacts(data);
+        } catch (error) {
+          console.error("Failed to fetch contacts:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      performFetch();
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, includeArchived]);
+
+  // Initial fetch
+  useEffect(() => {
+    const initialFetch = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch("/api/contacts");
+        const data = await response.json();
+        setContacts(data);
+      } catch (error) {
+        console.error("Failed to fetch contacts:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    initialFetch();
   }, []);
 
   const handleContactAdded = () => {
@@ -113,6 +179,32 @@ export default function ContactsPage() {
           </div>
         </div>
 
+        {/* Search and Filter Controls */}
+        <div className="mb-6 space-y-4 sm:space-y-0 sm:flex sm:items-center sm:space-x-4">
+          <div className="flex-1">
+            <input
+              type="text"
+              placeholder="Search contacts..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            />
+          </div>
+          <div className="flex items-center">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={includeArchived}
+                onChange={(e) => setIncludeArchived(e.target.checked)}
+                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              />
+              <span className="ml-2 text-sm text-gray-700">
+                Include archived
+              </span>
+            </label>
+          </div>
+        </div>
+
         {/* The main content container with the "glassmorphism" effect */}
         <div className="overflow-hidden shadow-xl bg-white/70 backdrop-blur-lg rounded-2xl ring-1 ring-black ring-opacity-5">
           {isLoading ? (
@@ -145,6 +237,7 @@ export default function ContactsPage() {
               contacts={contacts}
               onEdit={handleEditContact}
               onDelete={handleDeleteContact}
+              onArchive={handleArchiveContact}
             />
           )}
         </div>
