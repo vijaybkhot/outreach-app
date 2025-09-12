@@ -68,18 +68,16 @@ export class TemplateService {
 
   /**
    * Fetches all templates from the database, ordered by creation date.
+   * @param includeArchived - Whether to include archived templates
    * @returns A promise that resolves to an array of templates.
    */
-  static async getAll(): Promise<Template[]> {
+  static async getAll(includeArchived: boolean = false): Promise<Template[]> {
     try {
       return await prisma.template.findMany({
         orderBy: {
           createdAt: "desc",
         },
-        where: {
-          // Exclude archived templates by default
-          archived: false,
-        },
+        where: includeArchived ? {} : { archived: false },
       });
     } catch (error: unknown) {
       console.error("Error fetching templates:", error);
@@ -272,4 +270,211 @@ export class TemplateService {
       throw new Error("Failed to update template archive status.");
     }
   }
+
+  /**
+   * Searches templates by name, subject, or body content.
+   * @param query - The search query.
+   * @param includeArchived - Whether to include archived templates.
+   * @returns A promise that resolves to an array of matching templates.
+   */
+  static async search(
+    query: string,
+    includeArchived: boolean = false
+  ): Promise<Template[]> {
+    if (!query || query.trim() === "") {
+      return this.getAll(includeArchived);
+    }
+
+    const searchTerm = query.trim();
+
+    try {
+      return await prisma.template.findMany({
+        where: {
+          AND: [
+            includeArchived ? {} : { archived: false },
+            {
+              OR: [
+                { name: { contains: searchTerm, mode: "insensitive" } },
+                { subject: { contains: searchTerm, mode: "insensitive" } },
+                { body: { contains: searchTerm, mode: "insensitive" } },
+              ],
+            },
+          ],
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+    } catch (error: unknown) {
+      console.error("Error searching templates:", error);
+      throw new Error("Failed to search templates.");
+    }
+  }
+
+  /**
+   * Duplicates a template with a new name.
+   * @param id - The template ID to duplicate.
+   * @param newName - The name for the duplicated template.
+   * @returns A promise that resolves to the newly created template.
+   */
+  static async duplicate(id: number, newName: string): Promise<Template> {
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new Error("Invalid template ID.");
+    }
+
+    if (!newName || newName.trim() === "") {
+      throw new Error("New template name cannot be empty.");
+    }
+
+    try {
+      const originalTemplate = await prisma.template.findUnique({
+        where: { id },
+      });
+
+      if (!originalTemplate) {
+        throw new Error("Template not found.");
+      }
+
+      // Create a copy with the new name
+      return await this.create({
+        name: newName.trim(),
+        subject: originalTemplate.subject,
+        body: originalTemplate.body,
+        archived: false, // New template should not be archived
+      });
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        throw error;
+      }
+
+      console.error("Error duplicating template:", error);
+      throw new Error("Failed to duplicate template.");
+    }
+  }
+
+  /**
+   * Renders a template with contact data (variable substitution).
+   * @param templateId - The template ID.
+   * @param variables - Object containing variable substitutions.
+   * @returns A promise that resolves to the rendered template.
+   */
+  static async render(
+    templateId: number,
+    variables: Record<string, string>
+  ): Promise<{ subject: string; body: string }> {
+    if (!Number.isInteger(templateId) || templateId <= 0) {
+      throw new Error("Invalid template ID.");
+    }
+
+    try {
+      const template = await prisma.template.findUnique({
+        where: { id: templateId },
+      });
+
+      if (!template) {
+        throw new Error("Template not found.");
+      }
+
+      // Simple variable substitution ({{variableName}})
+      let renderedSubject = template.subject;
+      let renderedBody = template.body;
+
+      Object.entries(variables).forEach(([key, value]) => {
+        const placeholder = `{{${key}}}`;
+        renderedSubject = renderedSubject.replace(
+          new RegExp(placeholder, "g"),
+          value || ""
+        );
+        renderedBody = renderedBody.replace(
+          new RegExp(placeholder, "g"),
+          value || ""
+        );
+      });
+
+      return {
+        subject: renderedSubject,
+        body: renderedBody,
+      };
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        throw error;
+      }
+
+      console.error("Error rendering template:", error);
+      throw new Error("Failed to render template.");
+    }
+  }
+
+  /**
+   * Gets templates usage statistics.
+   * @param templateId - Optional template ID to get stats for a specific template.
+   * @returns A promise that resolves to usage statistics.
+   */
+  static async getUsageStats(templateId?: number): Promise<
+    Array<{
+      templateId: number;
+      templateName: string;
+      campaignCount: number;
+      lastUsed: Date | null;
+    }>
+  > {
+    try {
+      const whereClause = templateId ? { id: templateId } : {};
+
+      const templates = await prisma.template.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          name: true,
+          campaigns: {
+            select: {
+              id: true,
+              createdAt: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+        },
+      });
+
+      return templates.map((template) => ({
+        templateId: template.id,
+        templateName: template.name,
+        campaignCount: template.campaigns.length,
+        lastUsed: template.campaigns[0]?.createdAt || null,
+      }));
+    } catch (error: unknown) {
+      console.error("Error fetching template usage stats:", error);
+      throw new Error("Failed to fetch template usage statistics.");
+    }
+  }
+
+  /**
+   * Validates template variables in subject and body.
+   * @param subject - The template subject.
+   * @param body - The template body.
+   * @returns Array of variable names found in the template.
+   */
+  static extractVariables(subject: string, body: string): string[] {
+    const variableRegex = /\{\{(\w+)\}\}/g;
+    const variables = new Set<string>();
+
+    // Extract from subject
+    let match;
+    while ((match = variableRegex.exec(subject)) !== null) {
+      variables.add(match[1]);
+    }
+
+    // Extract from body
+    variableRegex.lastIndex = 0; // Reset regex
+    while ((match = variableRegex.exec(body)) !== null) {
+      variables.add(match[1]);
+    }
+
+    return Array.from(variables);
+  }
 }
+
+// Create and export a singleton instance
+export const templateService = new TemplateService();

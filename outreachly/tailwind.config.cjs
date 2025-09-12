@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+export default {
   // This content array is the most important part.
   // It tells Tailwind to scan all of these folders for class names.
   content: [

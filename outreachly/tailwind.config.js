@@ -1,7 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
-  // This content array is the most important part.
-  // It tells Tailwind to scan all of these folders for class names.
+const config = {
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -17,3 +15,5 @@ module.exports = {
   },
   plugins: [],
 };
+
+export default config;

@@ -46,6 +46,40 @@ describe("TemplateService", () => {
       });
     });
 
+    it("should include archived templates when includeArchived is true", async () => {
+      const mockTemplates = [
+        {
+          id: 1,
+          name: "Active Template",
+          subject: "Active Subject",
+          body: "Active body",
+          archived: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: 2,
+          name: "Archived Template",
+          subject: "Archived Subject",
+          body: "Archived body",
+          archived: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+      (mockPrisma.template.findMany as jest.Mock).mockResolvedValue(
+        mockTemplates
+      );
+
+      const templates = await TemplateService.getAll(true);
+
+      expect(templates).toHaveLength(2);
+      expect(mockPrisma.template.findMany).toHaveBeenCalledWith({
+        orderBy: { createdAt: "desc" },
+        where: {},
+      });
+    });
+
     it("should handle empty template list", async () => {
       (mockPrisma.template.findMany as jest.Mock).mockResolvedValue([]);
 
@@ -155,6 +189,79 @@ describe("TemplateService", () => {
         "Template body cannot be empty."
       );
     });
+
+    it("should throw error for empty template subject", async () => {
+      const invalidData = {
+        name: "Valid Name",
+        subject: "",
+        body: "Valid body",
+        archived: false,
+      };
+
+      await expect(TemplateService.create(invalidData)).rejects.toThrow(
+        "Template subject cannot be empty."
+      );
+    });
+
+    it("should throw error for template name too long", async () => {
+      const invalidData = {
+        name: "a".repeat(101), // 101 characters
+        subject: "Valid Subject",
+        body: "Valid body",
+        archived: false,
+      };
+
+      await expect(TemplateService.create(invalidData)).rejects.toThrow(
+        "Template name cannot exceed 100 characters."
+      );
+    });
+
+    it("should throw error for template subject too long", async () => {
+      const invalidData = {
+        name: "Valid Name",
+        subject: "a".repeat(256), // 256 characters
+        body: "Valid body",
+        archived: false,
+      };
+
+      await expect(TemplateService.create(invalidData)).rejects.toThrow(
+        "Template subject cannot exceed 255 characters."
+      );
+    });
+
+    it("should throw error for template body too long", async () => {
+      const invalidData = {
+        name: "Valid Name",
+        subject: "Valid Subject",
+        body: "a".repeat(10001), // 10001 characters
+        archived: false,
+      };
+
+      await expect(TemplateService.create(invalidData)).rejects.toThrow(
+        "Template body cannot exceed 10,000 characters."
+      );
+    });
+
+    it("should handle Prisma unique constraint error", async () => {
+      const templateData = {
+        name: "Duplicate Name",
+        subject: "Test Subject",
+        body: "Test body",
+        archived: false,
+      };
+
+      const prismaError = {
+        code: "P2002",
+        meta: { target: ["name"] },
+        message: "Unique constraint failed",
+      };
+
+      (mockPrisma.template.create as jest.Mock).mockRejectedValue(prismaError);
+
+      await expect(TemplateService.create(templateData)).rejects.toThrow(
+        'A template with the name "Duplicate Name" already exists.'
+      );
+    });
   });
 
   // --- Test Suite for update ---
@@ -227,6 +334,51 @@ describe("TemplateService", () => {
         "Template body cannot be empty."
       );
     });
+
+    it("should throw error when trying to update with empty subject", async () => {
+      const invalidData = { subject: "" };
+
+      await expect(TemplateService.update(1, invalidData)).rejects.toThrow(
+        "Template subject cannot be empty."
+      );
+    });
+
+    it("should throw error when template not found for update", async () => {
+      (mockPrisma.template.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        TemplateService.update(999, { name: "New Name" })
+      ).rejects.toThrow("Template not found");
+    });
+
+    it("should handle Prisma unique constraint error on update", async () => {
+      const existingTemplate = {
+        id: 1,
+        name: "Original Template",
+        subject: "Original Subject",
+        body: "Original body",
+        archived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const prismaError = {
+        code: "P2002",
+        meta: { target: ["name"] },
+        message: "Unique constraint failed",
+      };
+
+      (mockPrisma.template.findUnique as jest.Mock).mockResolvedValue(
+        existingTemplate
+      );
+      (mockPrisma.template.update as jest.Mock).mockRejectedValue(prismaError);
+
+      await expect(
+        TemplateService.update(1, { name: "Duplicate Name" })
+      ).rejects.toThrow(
+        'A template with the name "Duplicate Name" already exists.'
+      );
+    });
   });
 
   // --- Test Suite for delete ---
@@ -278,6 +430,35 @@ describe("TemplateService", () => {
     it("should throw error for invalid ID", async () => {
       await expect(TemplateService.delete(-1)).rejects.toThrow(
         "Invalid template ID"
+      );
+    });
+
+    it("should throw error when template not found", async () => {
+      (mockPrisma.template.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(TemplateService.delete(999)).rejects.toThrow(
+        "Template not found"
+      );
+    });
+
+    it("should throw error when template is used in campaigns", async () => {
+      const existingTemplate = {
+        id: 1,
+        name: "Used Template",
+        subject: "Used Subject",
+        body: "Used body",
+        archived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (mockPrisma.template.findUnique as jest.Mock).mockResolvedValue(
+        existingTemplate
+      );
+      (mockPrisma.campaign.count as jest.Mock).mockResolvedValue(2); // 2 campaigns using this template
+
+      await expect(TemplateService.delete(1)).rejects.toThrow(
+        "Cannot delete template that is being used in campaigns."
       );
     });
   });
@@ -372,6 +553,359 @@ describe("TemplateService", () => {
       await expect(TemplateService.setArchived(-1, true)).rejects.toThrow(
         "Invalid template ID"
       );
+    });
+  });
+
+  // --- Test Suite for search ---
+  describe("search", () => {
+    it("should search templates by name", async () => {
+      const mockTemplates = [
+        {
+          id: 1,
+          name: "Welcome Email",
+          subject: "Welcome Subject",
+          body: "Welcome body",
+          archived: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+      (mockPrisma.template.findMany as jest.Mock).mockResolvedValue(
+        mockTemplates
+      );
+
+      const result = await TemplateService.search("welcome");
+
+      expect(result).toHaveLength(1);
+      expect(mockPrisma.template.findMany).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            { archived: false },
+            {
+              OR: [
+                { name: { contains: "welcome", mode: "insensitive" } },
+                { subject: { contains: "welcome", mode: "insensitive" } },
+                { body: { contains: "welcome", mode: "insensitive" } },
+              ],
+            },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    });
+
+    it("should return all templates when query is empty", async () => {
+      const mockTemplates = [
+        {
+          id: 1,
+          name: "Template 1",
+          subject: "Subject 1",
+          body: "Body 1",
+          archived: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+      (mockPrisma.template.findMany as jest.Mock).mockResolvedValue(
+        mockTemplates
+      );
+
+      const result = await TemplateService.search("");
+
+      expect(result).toHaveLength(1);
+      expect(mockPrisma.template.findMany).toHaveBeenCalledWith({
+        orderBy: { createdAt: "desc" },
+        where: { archived: false },
+      });
+    });
+
+    it("should include archived templates when includeArchived is true", async () => {
+      const mockTemplates = [
+        {
+          id: 1,
+          name: "Welcome Email",
+          subject: "Welcome Subject",
+          body: "Welcome body",
+          archived: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+      (mockPrisma.template.findMany as jest.Mock).mockResolvedValue(
+        mockTemplates
+      );
+
+      const result = await TemplateService.search("welcome", true);
+
+      expect(result).toHaveLength(1);
+      expect(mockPrisma.template.findMany).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {},
+            {
+              OR: [
+                { name: { contains: "welcome", mode: "insensitive" } },
+                { subject: { contains: "welcome", mode: "insensitive" } },
+                { body: { contains: "welcome", mode: "insensitive" } },
+              ],
+            },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    });
+  });
+
+  // --- Test Suite for duplicate ---
+  describe("duplicate", () => {
+    it("should duplicate a template with a new name", async () => {
+      const originalTemplate = {
+        id: 1,
+        name: "Original Template",
+        subject: "Original Subject",
+        body: "Original body with {{firstName}}",
+        archived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const duplicatedTemplate = {
+        id: 2,
+        name: "Duplicated Template",
+        subject: "Original Subject",
+        body: "Original body with {{firstName}}",
+        archived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (mockPrisma.template.findUnique as jest.Mock).mockResolvedValue(
+        originalTemplate
+      );
+      (mockPrisma.template.create as jest.Mock).mockResolvedValue(
+        duplicatedTemplate
+      );
+
+      const result = await TemplateService.duplicate(1, "Duplicated Template");
+
+      expect(result).toEqual(duplicatedTemplate);
+      expect(mockPrisma.template.findUnique).toHaveBeenCalledWith({
+        where: { id: 1 },
+      });
+      expect(mockPrisma.template.create).toHaveBeenCalledWith({
+        data: {
+          name: "Duplicated Template",
+          subject: "Original Subject",
+          body: "Original body with {{firstName}}",
+        },
+      });
+    });
+
+    it("should throw error for invalid template ID", async () => {
+      await expect(TemplateService.duplicate(-1, "New Name")).rejects.toThrow(
+        "Invalid template ID"
+      );
+    });
+
+    it("should throw error for empty new name", async () => {
+      await expect(TemplateService.duplicate(1, "")).rejects.toThrow(
+        "New template name cannot be empty"
+      );
+    });
+
+    it("should throw error when original template not found", async () => {
+      (mockPrisma.template.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(TemplateService.duplicate(999, "New Name")).rejects.toThrow(
+        "Template not found"
+      );
+    });
+  });
+
+  // --- Test Suite for render ---
+  describe("render", () => {
+    it("should render template with variables", async () => {
+      const mockTemplate = {
+        id: 1,
+        name: "Test Template",
+        subject: "Hello {{firstName}}",
+        body: "Dear {{firstName}} from {{company}}, welcome!",
+        archived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (mockPrisma.template.findUnique as jest.Mock).mockResolvedValue(
+        mockTemplate
+      );
+
+      const result = await TemplateService.render(1, {
+        firstName: "John",
+        company: "Acme Corp",
+      });
+
+      expect(result).toEqual({
+        subject: "Hello John",
+        body: "Dear John from Acme Corp, welcome!",
+      });
+      expect(mockPrisma.template.findUnique).toHaveBeenCalledWith({
+        where: { id: 1 },
+      });
+    });
+
+    it("should handle missing variables gracefully", async () => {
+      const mockTemplate = {
+        id: 1,
+        name: "Test Template",
+        subject: "Hello {{firstName}}",
+        body: "Dear {{firstName}} from {{company}}, welcome!",
+        archived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (mockPrisma.template.findUnique as jest.Mock).mockResolvedValue(
+        mockTemplate
+      );
+
+      const result = await TemplateService.render(1, {
+        firstName: "John",
+        // company is missing
+      });
+
+      expect(result).toEqual({
+        subject: "Hello John",
+        body: "Dear John from {{company}}, welcome!", // Missing variables are left as-is
+      });
+    });
+
+    it("should throw error for invalid template ID", async () => {
+      await expect(TemplateService.render(-1, {})).rejects.toThrow(
+        "Invalid template ID"
+      );
+    });
+
+    it("should throw error when template not found", async () => {
+      (mockPrisma.template.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(TemplateService.render(999, {})).rejects.toThrow(
+        "Template not found"
+      );
+    });
+  });
+
+  // --- Test Suite for getUsageStats ---
+  describe("getUsageStats", () => {
+    it("should get usage stats for all templates", async () => {
+      const mockTemplatesWithCampaigns = [
+        {
+          id: 1,
+          name: "Template 1",
+          campaigns: [
+            { id: 2, createdAt: new Date("2023-01-02") }, // Most recent first
+            { id: 1, createdAt: new Date("2023-01-01") },
+          ],
+        },
+        {
+          id: 2,
+          name: "Template 2",
+          campaigns: [],
+        },
+      ];
+
+      (mockPrisma.template.findMany as jest.Mock).mockResolvedValue(
+        mockTemplatesWithCampaigns
+      );
+
+      const result = await TemplateService.getUsageStats();
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        templateId: 1,
+        templateName: "Template 1",
+        campaignCount: 2,
+        lastUsed: new Date("2023-01-02"),
+      });
+      expect(result[1]).toEqual({
+        templateId: 2,
+        templateName: "Template 2",
+        campaignCount: 0,
+        lastUsed: null,
+      });
+    });
+
+    it("should get usage stats for specific template", async () => {
+      const mockTemplateWithCampaigns = [
+        {
+          id: 1,
+          name: "Template 1",
+          campaigns: [{ id: 1, createdAt: new Date("2023-01-01") }],
+        },
+      ];
+
+      (mockPrisma.template.findMany as jest.Mock).mockResolvedValue(
+        mockTemplateWithCampaigns
+      );
+
+      const result = await TemplateService.getUsageStats(1);
+
+      expect(result).toHaveLength(1);
+      expect(mockPrisma.template.findMany).toHaveBeenCalledWith({
+        where: { id: 1 },
+        select: {
+          id: true,
+          name: true,
+          campaigns: {
+            select: {
+              id: true,
+              createdAt: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+        },
+      });
+    });
+  });
+
+  // --- Test Suite for extractVariables ---
+  describe("extractVariables", () => {
+    it("should extract variables from subject and body", () => {
+      const subject = "Hello {{firstName}}";
+      const body =
+        "Dear {{firstName}} from {{company}}, your {{product}} is ready!";
+
+      const result = TemplateService.extractVariables(subject, body);
+
+      expect(result).toEqual(["firstName", "company", "product"]);
+    });
+
+    it("should handle duplicate variables", () => {
+      const subject = "Hello {{firstName}}";
+      const body = "Dear {{firstName}}, welcome {{firstName}}!";
+
+      const result = TemplateService.extractVariables(subject, body);
+
+      expect(result).toEqual(["firstName"]);
+    });
+
+    it("should return empty array when no variables found", () => {
+      const subject = "Hello there";
+      const body = "This is a simple email with no variables.";
+
+      const result = TemplateService.extractVariables(subject, body);
+
+      expect(result).toEqual([]);
+    });
+
+    it("should handle invalid variable syntax", () => {
+      const subject = "Hello {firstName}"; // Single braces
+      const body = "Dear {{firstName}} and {lastName}!"; // Mixed syntax
+
+      const result = TemplateService.extractVariables(subject, body);
+
+      expect(result).toEqual(["firstName"]);
     });
   });
 });
