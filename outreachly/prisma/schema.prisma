@@ -35,17 +35,20 @@ model Campaign {
   name       String
   status     String              @default("Draft")
   createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
   templateId Int
   template   Template            @relation(fields: [templateId], references: [id])
   recipients CampaignRecipient[]
 }
 
 model CampaignRecipient {
-  status     String   @default("Scheduled")
+  id         Int       @id @default(autoincrement())
+  status     String    @default("Scheduled")
+  sentAt     DateTime?
   campaignId Int
   contactId  Int
-  campaign   Campaign @relation(fields: [campaignId], references: [id])
-  contact    Contact  @relation(fields: [contactId], references: [id])
+  campaign   Campaign  @relation(fields: [campaignId], references: [id])
+  contact    Contact   @relation(fields: [contactId], references: [id])
 
-  @@id([campaignId, contactId])
+  @@unique([campaignId, contactId])
 }
