@@ -13,6 +13,7 @@ export type UpdateCampaignData = {
   name?: string;
   status?: string;
   templateId?: number;
+  contactIds?: number[];
 };
 
 // Use Prisma's generated types for relations - these are automatically typed!
@@ -190,7 +191,7 @@ export class CampaignService {
   /**
    * Updates an existing campaign.
    * @param id - The ID of the campaign.
-   * @param data - The partial data to update (name, templateId, status).
+   * @param data - The partial data to update (name, templateId, status, contactIds).
    * @returns A promise that resolves to the updated campaign.
    */
   static async update(id: number, data: UpdateCampaignData): Promise<Campaign> {
@@ -218,6 +219,10 @@ export class CampaignService {
       throw new Error("Template ID must be a valid positive number");
     }
 
+    if (data.contactIds !== undefined && !Array.isArray(data.contactIds)) {
+      throw new Error("Contact IDs must be an array");
+    }
+
     try {
       // If templateId is being updated, verify the template exists
       if (data.templateId) {
@@ -230,13 +235,55 @@ export class CampaignService {
         }
       }
 
-      return await prisma.campaign.update({
-        where: { id },
-        data: {
-          ...(data.name && { name: data.name.trim() }),
-          ...(data.status && { status: data.status }),
-          ...(data.templateId && { templateId: data.templateId }),
-        },
+      // If contactIds are being updated, verify all contacts exist
+      if (data.contactIds && data.contactIds.length > 0) {
+        const contacts = await prisma.contact.findMany({
+          where: { id: { in: data.contactIds } },
+        });
+
+        if (contacts.length !== data.contactIds.length) {
+          const foundIds = contacts.map((c) => c.id);
+          const missingIds = data.contactIds.filter(
+            (id) => !foundIds.includes(id)
+          );
+          throw new Error(
+            `Contacts with IDs ${missingIds.join(", ")} not found`
+          );
+        }
+      }
+
+      // Use transaction to update campaign and recipients
+      return await prisma.$transaction(async (tx) => {
+        // Update campaign basic fields
+        const updatedCampaign = await tx.campaign.update({
+          where: { id },
+          data: {
+            ...(data.name && { name: data.name.trim() }),
+            ...(data.status && { status: data.status }),
+            ...(data.templateId && { templateId: data.templateId }),
+          },
+        });
+
+        // Update recipients if contactIds are provided
+        if (data.contactIds !== undefined) {
+          // Delete existing recipients
+          await tx.campaignRecipient.deleteMany({
+            where: { campaignId: id },
+          });
+
+          // Add new recipients
+          if (data.contactIds.length > 0) {
+            await tx.campaignRecipient.createMany({
+              data: data.contactIds.map((contactId) => ({
+                campaignId: id,
+                contactId,
+                status: "Scheduled",
+              })),
+            });
+          }
+        }
+
+        return updatedCampaign;
       });
     } catch (error) {
       // Add error handling for 'P2025' (record not found).

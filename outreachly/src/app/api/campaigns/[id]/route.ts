@@ -75,7 +75,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
     // Parse id from params and data from request.json().
     const id = parseInt(params.id);
     const body = await request.json();
-    const { name, status, templateId } = body;
+    const { name, status, templateId, contactIds } = body;
 
     // Validate ID is a valid number
     if (isNaN(id) || id <= 0) {
@@ -86,11 +86,11 @@ export async function PUT(request: Request, { params }: RouteContext) {
     }
 
     // Validate that at least one field is provided for update
-    if (!name && !status && !templateId) {
+    if (!name && !status && !templateId && !contactIds) {
       return NextResponse.json(
         {
           error:
-            "At least one field (name, status, templateId) must be provided for update",
+            "At least one field (name, status, templateId, contactIds) must be provided for update",
         },
         { status: 400 }
       );
@@ -127,15 +127,28 @@ export async function PUT(request: Request, { params }: RouteContext) {
       );
     }
 
+    if (
+      contactIds !== undefined &&
+      (!Array.isArray(contactIds) ||
+        contactIds.some((id) => typeof id !== "number" || id <= 0))
+    ) {
+      return NextResponse.json(
+        { error: "Contact IDs must be an array of valid positive numbers" },
+        { status: 400 }
+      );
+    }
+
     // Prepare update data
     const updateData: {
       name?: string;
       status?: string;
       templateId?: number;
+      contactIds?: number[];
     } = {};
     if (name !== undefined) updateData.name = name.trim();
     if (status !== undefined) updateData.status = status.trim();
     if (templateId !== undefined) updateData.templateId = templateId;
+    if (contactIds !== undefined) updateData.contactIds = contactIds;
 
     // Call CampaignService.update().
     const updatedCampaign = await CampaignService.update(id, updateData);
