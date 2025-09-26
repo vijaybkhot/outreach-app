@@ -196,6 +196,200 @@ describe("AddTemplateModal", () => {
     });
   });
 
+  describe("Custom Placeholder Detection", () => {
+    it("should detect and display custom placeholders", async () => {
+      render(<AddTemplateModal {...mockProps} />);
+
+      const subjectInput = screen.getByLabelText("Email Subject *");
+      const bodyTextarea = screen.getByLabelText("Email Body *");
+
+      fireEvent.change(subjectInput, {
+        target: { value: "Hello {{custom.field}}" },
+      });
+      fireEvent.change(bodyTextarea, {
+        target: { value: "Welcome {{user.customProperty}}!" },
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Custom Placeholders Detected (2)")
+        ).toBeInTheDocument();
+
+        // Check that custom placeholders appear in the orange custom section
+        const customSection = screen
+          .getByText("Custom Placeholders Detected (2)")
+          .closest("div");
+        expect(customSection).toHaveTextContent("custom.field");
+        expect(customSection).toHaveTextContent("user.customProperty");
+      });
+    });
+
+    it("should not show custom placeholders section when no custom placeholders exist", async () => {
+      render(<AddTemplateModal {...mockProps} />);
+
+      const subjectInput = screen.getByLabelText("Email Subject *");
+      const bodyTextarea = screen.getByLabelText("Email Body *");
+
+      fireEvent.change(subjectInput, {
+        target: { value: "Hello {{firstName}}" },
+      });
+      fireEvent.change(bodyTextarea, {
+        target: { value: "Welcome {{contact.lastName}}!" },
+      });
+
+      // Should not show custom placeholders section since these are known placeholders
+      await waitFor(() => {
+        expect(
+          screen.queryByText(/Custom Placeholders Detected/)
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("should distinguish between known and custom placeholders", async () => {
+      render(<AddTemplateModal {...mockProps} />);
+
+      const subjectInput = screen.getByLabelText("Email Subject *");
+      const bodyTextarea = screen.getByLabelText("Email Body *");
+
+      fireEvent.change(subjectInput, {
+        target: { value: "Hello {{firstName}} and {{custom.field}}" },
+      });
+      fireEvent.change(bodyTextarea, {
+        target: { value: "Welcome {{contact.email}} - {{unknownField}}!" },
+      });
+
+      await waitFor(() => {
+        // Should show detected variables section with both known and custom
+        expect(screen.getByText("Detected Variables (4)")).toBeInTheDocument();
+
+        // Should show custom placeholders section only with custom ones
+        expect(
+          screen.getByText("Custom Placeholders Detected (2)")
+        ).toBeInTheDocument();
+
+        // Check custom placeholders section specifically
+        const customSection = screen
+          .getByText("Custom Placeholders Detected (2)")
+          .closest("div");
+        expect(customSection).toHaveTextContent("custom.field");
+        expect(customSection).toHaveTextContent("unknownField");
+
+        // Known placeholders should not appear in custom section
+        expect(customSection).not.toHaveTextContent("firstName");
+        expect(customSection).not.toHaveTextContent("contact.email");
+      });
+    });
+
+    it("should handle dot notation placeholders correctly", async () => {
+      render(<AddTemplateModal {...mockProps} />);
+
+      const subjectInput = screen.getByLabelText("Email Subject *");
+      const bodyTextarea = screen.getByLabelText("Email Body *");
+
+      fireEvent.change(subjectInput, {
+        target: { value: "{{user.profile.name}}" },
+      });
+      fireEvent.change(bodyTextarea, {
+        target: { value: "{{organization.settings.theme}}" },
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Custom Placeholders Detected (2)")
+        ).toBeInTheDocument();
+
+        const customSection = screen
+          .getByText("Custom Placeholders Detected (2)")
+          .closest("div");
+        expect(customSection).toHaveTextContent("user.profile.name");
+        expect(customSection).toHaveTextContent("organization.settings.theme");
+      });
+    });
+
+    it("should handle placeholders with whitespace", async () => {
+      render(<AddTemplateModal {...mockProps} />);
+
+      const subjectInput = screen.getByLabelText("Email Subject *");
+      const bodyTextarea = screen.getByLabelText("Email Body *");
+
+      fireEvent.change(subjectInput, {
+        target: { value: "{{ custom.field }}" },
+      });
+      fireEvent.change(bodyTextarea, {
+        target: { value: "{{  user.name  }}" },
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Custom Placeholders Detected (2)")
+        ).toBeInTheDocument();
+
+        const customSection = screen
+          .getByText("Custom Placeholders Detected (2)")
+          .closest("div");
+        expect(customSection).toHaveTextContent("custom.field");
+        expect(customSection).toHaveTextContent("user.name");
+      });
+    });
+
+    it("should remove duplicates from custom placeholders", async () => {
+      render(<AddTemplateModal {...mockProps} />);
+
+      const subjectInput = screen.getByLabelText("Email Subject *");
+      const bodyTextarea = screen.getByLabelText("Email Body *");
+
+      fireEvent.change(subjectInput, { target: { value: "{{custom.field}}" } });
+      fireEvent.change(bodyTextarea, {
+        target: { value: "{{custom.field}} appears twice {{custom.field}}" },
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Custom Placeholders Detected (1)")
+        ).toBeInTheDocument();
+
+        const customSection = screen
+          .getByText("Custom Placeholders Detected (1)")
+          .closest("div");
+        expect(customSection).toHaveTextContent("custom.field");
+      });
+    });
+
+    it("should update custom placeholders when input changes", async () => {
+      render(<AddTemplateModal {...mockProps} />);
+
+      const subjectInput = screen.getByLabelText("Email Subject *");
+
+      // Start with one custom placeholder
+      fireEvent.change(subjectInput, {
+        target: { value: "{{custom.field1}}" },
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Custom Placeholders Detected (1)")
+        ).toBeInTheDocument();
+        const customSection = screen
+          .getByText("Custom Placeholders Detected (1)")
+          .closest("div");
+        expect(customSection).toHaveTextContent("custom.field1");
+      });
+
+      // Change to different placeholder
+      fireEvent.change(subjectInput, {
+        target: { value: "{{custom.field2}}" },
+      });
+
+      await waitFor(() => {
+        const customSection = screen
+          .getByText("Custom Placeholders Detected (1)")
+          .closest("div");
+        expect(customSection).toHaveTextContent("custom.field2");
+        expect(customSection).not.toHaveTextContent("custom.field1");
+      });
+    });
+  });
+
   describe("Preview Functionality", () => {
     it("should toggle preview mode", async () => {
       const user = userEvent.setup();

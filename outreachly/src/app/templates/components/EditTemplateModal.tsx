@@ -3,7 +3,7 @@
 import { useState, useEffect, FormEvent, Fragment } from "react";
 import { Transition, Dialog } from "@headlessui/react";
 import { X, FileText, Eye, EyeOff } from "lucide-react";
-import { Template } from "@prisma/client";
+import { Template } from "../../../types/template";
 
 interface EditTemplateModalProps {
   isOpen: boolean;
@@ -23,6 +23,69 @@ export function EditTemplateModal({
   const [body, setBody] = useState(template.body);
   const [isLoading, setIsLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [detectedCustomPlaceholders, setDetectedCustomPlaceholders] = useState<
+    string[]
+  >([]);
+
+  // Enhanced function to extract placeholders with dot notation support
+  const extractPlaceholderNames = (text: string): string[] => {
+    const regex = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
+    const placeholders = new Set<string>();
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      placeholders.add(match[1]);
+    }
+    return Array.from(placeholders);
+  };
+
+  // Effect to detect custom placeholders when subject or body changes
+  useEffect(() => {
+    const knownPlaceholdersList = [
+      // Contact placeholders
+      "contact.firstName",
+      "contact.lastName",
+      "contact.email",
+      "contact.company",
+      "contact.phone",
+      "contact.position",
+      // Campaign placeholders
+      "campaign.name",
+      "campaign.subject",
+      // My/sender placeholders
+      "my.firstName",
+      "my.lastName",
+      "my.email",
+      "my.company",
+      "my.phone",
+      "my.title",
+      "my.linkedin",
+      // Company placeholders (for the company being contacted)
+      "company.name",
+      "company.website",
+      "company.industry",
+      // Legacy simple placeholders (for backward compatibility)
+      "firstName",
+      "lastName",
+      "email",
+      "company",
+      "product",
+    ];
+
+    const subjectPlaceholders = extractPlaceholderNames(subject);
+    const bodyPlaceholders = extractPlaceholderNames(body);
+    const allDetectedPlaceholders = [
+      ...subjectPlaceholders,
+      ...bodyPlaceholders,
+    ];
+    const uniquePlaceholders = Array.from(new Set(allDetectedPlaceholders));
+
+    // Filter out known placeholders to get custom ones
+    const customPlaceholders = uniquePlaceholders.filter(
+      (placeholder) => !knownPlaceholdersList.includes(placeholder)
+    );
+
+    setDetectedCustomPlaceholders(customPlaceholders);
+  }, [subject, body]);
 
   // Update form when template changes
   useEffect(() => {
@@ -72,10 +135,11 @@ export function EditTemplateModal({
   };
 
   const extractVariables = (text: string): string[] => {
-    const variableRegex = /\{\{(\w+)\}\}/g;
+    // Use the same enhanced regex as extractPlaceholderNames
+    const regex = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
     const variables = new Set<string>();
     let match;
-    while ((match = variableRegex.exec(text)) !== null) {
+    while ((match = regex.exec(text)) !== null) {
       variables.add(match[1]);
     }
     return Array.from(variables);
@@ -250,6 +314,30 @@ export function EditTemplateModal({
                           <p className="text-xs text-blue-700 mt-2">
                             These variables will be replaced with actual contact
                             data when sending emails.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Custom Placeholders */}
+                      {detectedCustomPlaceholders.length > 0 && (
+                        <div className="p-4 rounded-lg bg-orange-50">
+                          <h4 className="mb-2 text-sm font-medium text-orange-900">
+                            Custom Placeholders Detected (
+                            {detectedCustomPlaceholders.length})
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {detectedCustomPlaceholders.map((placeholder) => (
+                              <span
+                                key={placeholder}
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-orange-800 bg-orange-100 rounded-full"
+                              >
+                                {placeholder}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="mt-2 text-xs text-orange-700">
+                            These are custom placeholders that will need to be
+                            manually defined when sending emails.
                           </p>
                         </div>
                       )}

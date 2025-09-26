@@ -1,6 +1,8 @@
 // app/layout.tsx
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Header from "../components/Header";
+import Footer from "../components/Footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,6 +14,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const metadata = {
+  title: "Outreachly - Streamline Your Outreach Campaigns",
+  description:
+    "Powerful automation, beautiful templates, and comprehensive analytics for better outreach campaigns.",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -20,9 +28,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
-        {children}
+        <Header />
+        <main id="main-content" className="flex-1" role="main">
+          {children}
+        </main>
+        <Footer />
       </body>
     </html>
   );

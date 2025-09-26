@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent, Fragment } from "react";
+import { useState, FormEvent, Fragment, useEffect } from "react";
 import { Transition, Dialog } from "@headlessui/react";
 import { X, FileText, Eye, EyeOff } from "lucide-react";
 
@@ -20,6 +20,69 @@ export function AddTemplateModal({
   const [body, setBody] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [detectedCustomPlaceholders, setDetectedCustomPlaceholders] = useState<
+    string[]
+  >([]);
+
+  // Enhanced function to extract placeholders with dot notation support
+  const extractPlaceholderNames = (text: string): string[] => {
+    const regex = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
+    const placeholders = new Set<string>();
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      placeholders.add(match[1]);
+    }
+    return Array.from(placeholders);
+  };
+
+  // Effect to detect custom placeholders when subject or body changes
+  useEffect(() => {
+    const knownPlaceholdersList = [
+      // Contact placeholders
+      "contact.firstName",
+      "contact.lastName",
+      "contact.email",
+      "contact.company",
+      "contact.phone",
+      "contact.position",
+      // Campaign placeholders
+      "campaign.name",
+      "campaign.subject",
+      // My/sender placeholders
+      "my.firstName",
+      "my.lastName",
+      "my.email",
+      "my.company",
+      "my.phone",
+      "my.title",
+      "my.linkedin",
+      // Company placeholders (for the company being contacted)
+      "company.name",
+      "company.website",
+      "company.industry",
+      // Legacy simple placeholders (for backward compatibility)
+      "firstName",
+      "lastName",
+      "email",
+      "company",
+      "product",
+    ];
+
+    const subjectPlaceholders = extractPlaceholderNames(subject);
+    const bodyPlaceholders = extractPlaceholderNames(body);
+    const allDetectedPlaceholders = [
+      ...subjectPlaceholders,
+      ...bodyPlaceholders,
+    ];
+    const uniquePlaceholders = Array.from(new Set(allDetectedPlaceholders));
+
+    // Filter out known placeholders to get custom ones
+    const customPlaceholders = uniquePlaceholders.filter(
+      (placeholder) => !knownPlaceholdersList.includes(placeholder)
+    );
+
+    setDetectedCustomPlaceholders(customPlaceholders);
+  }, [subject, body]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -54,6 +117,7 @@ export function AddTemplateModal({
       setSubject("");
       setBody("");
       setShowPreview(false);
+      setDetectedCustomPlaceholders([]);
 
       onTemplateAdded();
       onClose();
@@ -68,10 +132,11 @@ export function AddTemplateModal({
   };
 
   const extractVariables = (text: string): string[] => {
-    const variableRegex = /\{\{(\w+)\}\}/g;
+    // Use the same enhanced regex as extractPlaceholderNames
+    const regex = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
     const variables = new Set<string>();
     let match;
-    while ((match = variableRegex.exec(text)) !== null) {
+    while ((match = regex.exec(text)) !== null) {
       variables.add(match[1]);
     }
     return Array.from(variables);
@@ -130,7 +195,7 @@ export function AddTemplateModal({
               <Dialog.Panel className="w-full max-w-4xl p-6 overflow-hidden text-left align-middle transition-all transform shadow-xl rounded-2xl bg-white/80 ring-1 ring-black ring-opacity-5 backdrop-blur-lg">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-indigo-100">
+                    <div className="p-2 bg-indigo-100 rounded-lg">
                       <FileText className="w-5 h-5 text-indigo-600" />
                     </div>
                     <Dialog.Title className="text-lg font-medium text-gray-900">
@@ -141,14 +206,14 @@ export function AddTemplateModal({
                     <button
                       type="button"
                       onClick={() => setShowPreview(!showPreview)}
-                      className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                      className="p-2 text-gray-400 rounded-lg hover:text-gray-600 hover:bg-gray-100"
                       title={showPreview ? "Hide preview" : "Show preview"}
                     >
                       {showPreview ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
                     <button
                       type="button"
-                      className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                      className="p-2 text-gray-400 rounded-lg hover:text-gray-600 hover:bg-gray-100"
                       onClick={onClose}
                     >
                       <X size={20} />
@@ -167,7 +232,7 @@ export function AddTemplateModal({
                       <div>
                         <label
                           htmlFor="name"
-                          className="block text-sm font-medium text-gray-700 mb-1"
+                          className="block mb-1 text-sm font-medium text-gray-700"
                         >
                           Template Name <span className="text-red-500">*</span>
                         </label>
@@ -176,7 +241,7 @@ export function AddTemplateModal({
                           id="name"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
-                          className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          className="block w-full px-3 py-2 placeholder-gray-400 border border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                           placeholder="Welcome Email"
                           maxLength={100}
                         />
@@ -188,7 +253,7 @@ export function AddTemplateModal({
                       <div>
                         <label
                           htmlFor="subject"
-                          className="block text-sm font-medium text-gray-700 mb-1"
+                          className="block mb-1 text-sm font-medium text-gray-700"
                         >
                           Email Subject <span className="text-red-500">*</span>
                         </label>
@@ -197,7 +262,7 @@ export function AddTemplateModal({
                           id="subject"
                           value={subject}
                           onChange={(e) => setSubject(e.target.value)}
-                          className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          className="block w-full px-3 py-2 placeholder-gray-400 border border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                           placeholder="Welcome to {{company}}, {{firstName}}!"
                           maxLength={255}
                         />
@@ -209,7 +274,7 @@ export function AddTemplateModal({
                       <div>
                         <label
                           htmlFor="body"
-                          className="block text-sm font-medium text-gray-700 mb-1"
+                          className="block mb-1 text-sm font-medium text-gray-700"
                         >
                           Email Body <span className="text-red-500">*</span>
                         </label>
@@ -218,7 +283,7 @@ export function AddTemplateModal({
                           rows={12}
                           value={body}
                           onChange={(e) => setBody(e.target.value)}
-                          className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          className="block w-full px-3 py-2 placeholder-gray-400 border border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                           placeholder="Hi {{firstName}},&#10;&#10;Welcome to {{company}}! We're excited to have you on board.&#10;&#10;Best regards,&#10;The Team"
                           maxLength={10000}
                         />
@@ -229,23 +294,47 @@ export function AddTemplateModal({
 
                       {/* Variables */}
                       {uniqueVariables.length > 0 && (
-                        <div className="bg-blue-50 p-4 rounded-lg">
-                          <h4 className="text-sm font-medium text-blue-900 mb-2">
+                        <div className="p-4 rounded-lg bg-blue-50">
+                          <h4 className="mb-2 text-sm font-medium text-blue-900">
                             Detected Variables ({uniqueVariables.length})
                           </h4>
                           <div className="flex flex-wrap gap-2">
                             {uniqueVariables.map((variable) => (
                               <span
                                 key={variable}
-                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-800 bg-blue-100 rounded-full"
                               >
                                 {variable}
                               </span>
                             ))}
                           </div>
-                          <p className="text-xs text-blue-700 mt-2">
+                          <p className="mt-2 text-xs text-blue-700">
                             These variables will be replaced with actual contact
                             data when sending emails.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Custom Placeholders */}
+                      {detectedCustomPlaceholders.length > 0 && (
+                        <div className="p-4 rounded-lg bg-orange-50">
+                          <h4 className="mb-2 text-sm font-medium text-orange-900">
+                            Custom Placeholders Detected (
+                            {detectedCustomPlaceholders.length})
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {detectedCustomPlaceholders.map((placeholder) => (
+                              <span
+                                key={placeholder}
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-orange-800 bg-orange-100 rounded-full"
+                              >
+                                {placeholder}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="mt-2 text-xs text-orange-700">
+                            These are custom placeholders that will need to be
+                            manually defined when sending emails.
                           </p>
                         </div>
                       )}
@@ -276,16 +365,16 @@ export function AddTemplateModal({
 
                   {/* Preview */}
                   {showPreview && (
-                    <div className="border-l border-gray-200 pl-6">
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    <div className="pl-6 border-l border-gray-200">
+                      <h3 className="mb-4 text-lg font-medium text-gray-900">
                         Preview
                       </h3>
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block mb-1 text-sm font-medium text-gray-700">
                             Subject Line
                           </label>
-                          <div className="p-3 bg-gray-50 rounded-md text-sm">
+                          <div className="p-3 text-sm rounded-md bg-gray-50">
                             {subject ? (
                               renderPreview(subject)
                             ) : (
@@ -296,7 +385,7 @@ export function AddTemplateModal({
                           </div>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block mb-1 text-sm font-medium text-gray-700">
                             Email Body
                           </label>
                           <div className="p-3 bg-gray-50 rounded-md text-sm whitespace-pre-wrap min-h-[200px]">

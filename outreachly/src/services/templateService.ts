@@ -1,8 +1,32 @@
 import { CreateTemplateData } from "@/types/template";
-import { Template } from "@prisma/client";
+import { Template, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export class TemplateService {
+  /**
+   * Helper function to extract placeholder names from template text.
+   * This function parses a string (email subject or body) and returns an array
+   * of unique placeholder names found (e.g., ["contact.firstName", "product.name"]).
+   * It supports dot notation for complex placeholders and differentiate between
+   * known DB placeholders (contact., campaign., my.) and custom ones.
+   * @param text - The text to parse for placeholders
+   * @returns Array of unique placeholder names
+   */
+  static extractPlaceholderNames(text: string): string[] {
+    const placeholders = new Set<string>();
+    const regex = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      placeholders.add(match[1]);
+    }
+
+    // Filter out known database-driven placeholders if desired, or keep all
+    // For this feature, we want to store *all* detected placeholders for the template
+    // and let the frontend/sending logic decide which are custom and which are DB-driven.
+    return Array.from(placeholders);
+  }
+
   /**
    * Creates a new template in the database.
    * @param data - The data for the new template.
@@ -32,12 +56,19 @@ export class TemplateService {
     }
 
     try {
+      // Add this line BEFORE prisma.template.create:
+      const detectedPlaceholders = this.extractPlaceholderNames(
+        data.subject + " " + data.body
+      );
+
       const newTemplate = await prisma.template.create({
         data: {
           name: data.name.trim(),
           subject: data.subject.trim(),
           body: data.body.trim(),
-        },
+          archived: data.archived ?? false,
+          customPlaceholders: detectedPlaceholders,
+        } as Prisma.TemplateCreateInput,
       });
       return newTemplate;
     } catch (error: unknown) {
@@ -202,10 +233,28 @@ export class TemplateService {
       }
 
       // Prepare update data with trimmed values
-      const updateData: Partial<CreateTemplateData> = {};
+      const updateData: {
+        name?: string;
+        subject?: string;
+        body?: string;
+        archived?: boolean;
+        customPlaceholders?: string[];
+      } = {};
       if (data.name !== undefined) updateData.name = data.name.trim();
       if (data.subject !== undefined) updateData.subject = data.subject.trim();
       if (data.body !== undefined) updateData.body = data.body.trim();
+      if (data.archived !== undefined) updateData.archived = data.archived;
+
+      // If subject or body are being updated, re-detect placeholders
+      if (data.subject !== undefined || data.body !== undefined) {
+        const currentSubject =
+          data.subject !== undefined ? data.subject : existingTemplate.subject;
+        const currentBody =
+          data.body !== undefined ? data.body : existingTemplate.body;
+        updateData.customPlaceholders = this.extractPlaceholderNames(
+          currentSubject + " " + currentBody
+        ); // <-- NEW
+      }
 
       return await prisma.template.update({
         where: { id },
@@ -341,6 +390,7 @@ export class TemplateService {
         subject: originalTemplate.subject,
         body: originalTemplate.body,
         archived: false, // New template should not be archived
+        // customPlaceholders will be auto-detected by the create method
       });
     } catch (error: unknown) {
       if (error instanceof Error) {

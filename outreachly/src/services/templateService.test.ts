@@ -12,6 +12,18 @@ jest.mock("@/lib/prisma", () => ({
 // We can now get a reference to the mock for our tests
 import { prisma as mockPrisma } from "@/lib/prisma";
 
+// Extended Template interface for testing with customPlaceholders
+interface TemplateWithPlaceholders {
+  id: number;
+  name: string;
+  subject: string;
+  body: string;
+  customPlaceholders: string[];
+  archived: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 describe("TemplateService", () => {
   beforeEach(() => {
     // Reset the mock before each test to ensure test isolation
@@ -27,6 +39,7 @@ describe("TemplateService", () => {
           name: "Welcome Email",
           subject: "Welcome to our platform",
           body: "Hello {{firstName}}, welcome!",
+          customPlaceholders: ["firstName"],
           archived: false,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -50,18 +63,20 @@ describe("TemplateService", () => {
       const mockTemplates = [
         {
           id: 1,
-          name: "Active Template",
-          subject: "Active Subject",
-          body: "Active body",
+          name: "Template 1",
+          subject: "Subject 1",
+          body: "Body 1",
+          customPlaceholders: [],
           archived: false,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
         {
           id: 2,
-          name: "Archived Template",
-          subject: "Archived Subject",
-          body: "Archived body",
+          name: "Template 2",
+          subject: "Subject 2",
+          body: "Body 2",
+          customPlaceholders: [],
           archived: true,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -98,6 +113,7 @@ describe("TemplateService", () => {
         name: "Test Template",
         subject: "Test Subject",
         body: "Test body with {{firstName}}",
+        customPlaceholders: ["firstName"],
         archived: false,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -145,6 +161,7 @@ describe("TemplateService", () => {
       const mockCreatedTemplate = {
         id: 1,
         ...templateData,
+        customPlaceholders: ["firstName"],
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -160,6 +177,8 @@ describe("TemplateService", () => {
           name: "New Template",
           subject: "New Subject",
           body: "Hello {{firstName}}, this is a new template!",
+          archived: false,
+          customPlaceholders: ["firstName"],
         },
       });
     });
@@ -278,6 +297,7 @@ describe("TemplateService", () => {
         name: "Original Template",
         subject: "Original Subject",
         body: "Original body",
+        customPlaceholders: [],
         archived: false,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -288,6 +308,7 @@ describe("TemplateService", () => {
         name: "Updated Template",
         subject: "Updated Subject",
         body: "Updated body with {{firstName}}",
+        customPlaceholders: ["firstName"],
         archived: false,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -309,7 +330,12 @@ describe("TemplateService", () => {
       });
       expect(mockPrisma.template.update).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: updateData,
+        data: {
+          name: "Updated Template",
+          subject: "Updated Subject",
+          body: "Updated body with {{firstName}}",
+          customPlaceholders: ["firstName"],
+        },
       });
     });
 
@@ -664,6 +690,7 @@ describe("TemplateService", () => {
         name: "Original Template",
         subject: "Original Subject",
         body: "Original body with {{firstName}}",
+        customPlaceholders: ["firstName"],
         archived: false,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -674,6 +701,7 @@ describe("TemplateService", () => {
         name: "Duplicated Template",
         subject: "Original Subject",
         body: "Original body with {{firstName}}",
+        customPlaceholders: ["firstName"],
         archived: false,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -697,6 +725,8 @@ describe("TemplateService", () => {
           name: "Duplicated Template",
           subject: "Original Subject",
           body: "Original body with {{firstName}}",
+          archived: false,
+          customPlaceholders: ["firstName"],
         },
       });
     });
@@ -869,7 +899,88 @@ describe("TemplateService", () => {
     });
   });
 
-  // --- Test Suite for extractVariables ---
+  // --- Test Suite for extractPlaceholderNames ---
+  describe("extractPlaceholderNames", () => {
+    it("should extract simple placeholders", () => {
+      const text = "Hello {{firstName}} from {{company}}!";
+      const result = TemplateService.extractPlaceholderNames(text);
+      expect(result).toEqual(["firstName", "company"]);
+    });
+
+    it("should extract dot notation placeholders", () => {
+      const text = "Hi {{contact.firstName}}, welcome to {{company.name}}!";
+      const result = TemplateService.extractPlaceholderNames(text);
+      expect(result).toEqual(["contact.firstName", "company.name"]);
+    });
+
+    it("should handle mixed simple and dot notation placeholders", () => {
+      const text =
+        "Dear {{contact.firstName}} {{lastName}}, {{product.name}} is ready at {{company.address}}!";
+      const result = TemplateService.extractPlaceholderNames(text);
+      expect(result).toEqual([
+        "contact.firstName",
+        "lastName",
+        "product.name",
+        "company.address",
+      ]);
+    });
+
+    it("should handle placeholders with underscores and numbers", () => {
+      const text = "Hello {{user_name}} and {{contact_2}} from {{company_123}}";
+      const result = TemplateService.extractPlaceholderNames(text);
+      expect(result).toEqual(["user_name", "contact_2", "company_123"]);
+    });
+
+    it("should handle placeholders with whitespace", () => {
+      const text = "Hello {{ firstName }} from {{ company.name }}!";
+      const result = TemplateService.extractPlaceholderNames(text);
+      expect(result).toEqual(["firstName", "company.name"]);
+    });
+
+    it("should remove duplicates", () => {
+      const text =
+        "Hello {{firstName}} and {{firstName}} from {{company}} at {{company}}!";
+      const result = TemplateService.extractPlaceholderNames(text);
+      expect(result).toEqual(["firstName", "company"]);
+    });
+
+    it("should return empty array when no placeholders found", () => {
+      const text = "This is a simple text with no placeholders.";
+      const result = TemplateService.extractPlaceholderNames(text);
+      expect(result).toEqual([]);
+    });
+
+    it("should ignore invalid placeholder syntax", () => {
+      const text = "Hello {firstName} and {{lastName}} and {{{company}}}";
+      const result = TemplateService.extractPlaceholderNames(text);
+      expect(result).toEqual(["lastName", "company"]);
+    });
+
+    it("should handle complex nested dot notation", () => {
+      const text =
+        "Welcome {{user.profile.firstName}} to {{company.settings.name}}";
+      const result = TemplateService.extractPlaceholderNames(text);
+      expect(result).toEqual([
+        "user.profile.firstName",
+        "company.settings.name",
+      ]);
+    });
+
+    it("should handle multiple placeholders in same text", () => {
+      const text =
+        "{{contact.firstName}} {{contact.lastName}} from {{contact.company}} loves {{product.name}} at {{company.location}}";
+      const result = TemplateService.extractPlaceholderNames(text);
+      expect(result).toEqual([
+        "contact.firstName",
+        "contact.lastName",
+        "contact.company",
+        "product.name",
+        "company.location",
+      ]);
+    });
+  });
+
+  // --- Test Suite for legacy extractVariables (kept for compatibility) ---
   describe("extractVariables", () => {
     it("should extract variables from subject and body", () => {
       const subject = "Hello {{firstName}}";
@@ -906,6 +1017,190 @@ describe("TemplateService", () => {
       const result = TemplateService.extractVariables(subject, body);
 
       expect(result).toEqual(["firstName"]);
+    });
+  });
+
+  // --- Integration Tests for Placeholder Detection ---
+  describe("Placeholder Detection Integration", () => {
+    it("should auto-detect placeholders when creating template", async () => {
+      const templateData = {
+        name: "Complex Template",
+        subject: "Welcome {{contact.firstName}} to {{company.name}}!",
+        body: "Dear {{contact.firstName}}, your {{product.type}} from {{vendor.name}} is ready!",
+        archived: false,
+      };
+
+      const mockCreatedTemplate = {
+        id: 1,
+        ...templateData,
+        customPlaceholders: [
+          "contact.firstName",
+          "company.name",
+          "product.type",
+          "vendor.name",
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (mockPrisma.template.create as jest.Mock).mockResolvedValue(
+        mockCreatedTemplate
+      );
+
+      const result = await TemplateService.create(templateData);
+
+      expect((result as TemplateWithPlaceholders).customPlaceholders).toEqual([
+        "contact.firstName",
+        "company.name",
+        "product.type",
+        "vendor.name",
+      ]);
+      expect(mockPrisma.template.create).toHaveBeenCalledWith({
+        data: {
+          name: "Complex Template",
+          subject: "Welcome {{contact.firstName}} to {{company.name}}!",
+          body: "Dear {{contact.firstName}}, your {{product.type}} from {{vendor.name}} is ready!",
+          archived: false,
+          customPlaceholders: [
+            "contact.firstName",
+            "company.name",
+            "product.type",
+            "vendor.name",
+          ],
+        },
+      });
+    });
+
+    it("should re-detect placeholders when updating template content", async () => {
+      const existingTemplate = {
+        id: 1,
+        name: "Original Template",
+        subject: "Hello {{firstName}}",
+        body: "Welcome {{firstName}}!",
+        customPlaceholders: ["firstName"],
+        archived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const updateData = {
+        subject: "Hi {{contact.firstName}} from {{company.name}}!",
+        body: "Welcome to {{product.category}} at {{company.location}}!",
+      };
+
+      const mockUpdatedTemplate = {
+        ...existingTemplate,
+        ...updateData,
+        customPlaceholders: [
+          "contact.firstName",
+          "company.name",
+          "product.category",
+          "company.location",
+        ],
+      };
+
+      (mockPrisma.template.findUnique as jest.Mock).mockResolvedValue(
+        existingTemplate
+      );
+      (mockPrisma.template.update as jest.Mock).mockResolvedValue(
+        mockUpdatedTemplate
+      );
+
+      const result = await TemplateService.update(1, updateData);
+
+      expect((result as TemplateWithPlaceholders).customPlaceholders).toEqual([
+        "contact.firstName",
+        "company.name",
+        "product.category",
+        "company.location",
+      ]);
+      expect(mockPrisma.template.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: {
+          subject: "Hi {{contact.firstName}} from {{company.name}}!",
+          body: "Welcome to {{product.category}} at {{company.location}}!",
+          customPlaceholders: [
+            "contact.firstName",
+            "company.name",
+            "product.category",
+            "company.location",
+          ],
+        },
+      });
+    });
+
+    it("should not update placeholders when only name is changed", async () => {
+      const existingTemplate = {
+        id: 1,
+        name: "Original Template",
+        subject: "Hello {{firstName}}",
+        body: "Welcome {{firstName}}!",
+        customPlaceholders: ["firstName"],
+        archived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const updateData = {
+        name: "Updated Template Name",
+      };
+
+      const mockUpdatedTemplate = {
+        ...existingTemplate,
+        ...updateData,
+      };
+
+      (mockPrisma.template.findUnique as jest.Mock).mockResolvedValue(
+        existingTemplate
+      );
+      (mockPrisma.template.update as jest.Mock).mockResolvedValue(
+        mockUpdatedTemplate
+      );
+
+      await TemplateService.update(1, updateData);
+
+      expect(mockPrisma.template.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: {
+          name: "Updated Template Name",
+        },
+      });
+    });
+
+    it("should handle templates with no placeholders", async () => {
+      const templateData = {
+        name: "Simple Template",
+        subject: "Welcome to our platform!",
+        body: "Thank you for joining us. We appreciate your business.",
+        archived: false,
+      };
+
+      const mockCreatedTemplate = {
+        id: 1,
+        ...templateData,
+        customPlaceholders: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (mockPrisma.template.create as jest.Mock).mockResolvedValue(
+        mockCreatedTemplate
+      );
+
+      const result = await TemplateService.create(templateData);
+
+      expect((result as TemplateWithPlaceholders).customPlaceholders).toEqual(
+        []
+      );
+      expect(mockPrisma.template.create).toHaveBeenCalledWith({
+        data: {
+          name: "Simple Template",
+          subject: "Welcome to our platform!",
+          body: "Thank you for joining us. We appreciate your business.",
+          archived: false,
+          customPlaceholders: [],
+        },
+      });
     });
   });
 });

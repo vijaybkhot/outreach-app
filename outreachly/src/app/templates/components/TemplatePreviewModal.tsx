@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { Transition, Dialog } from "@headlessui/react";
 import { X, Eye, Download, Send, RotateCcw } from "lucide-react";
-import { Template } from "@prisma/client";
+import { Template } from "@/types/template";
 
 interface TemplatePreviewModalProps {
   isOpen: boolean;
@@ -19,6 +19,9 @@ export function TemplatePreviewModal({
   const [variableValues, setVariableValues] = useState<Record<string, string>>(
     {}
   );
+  const [customVariableValues, setCustomVariableValues] = useState<
+    Record<string, string>
+  >({});
   const [renderedTemplate, setRenderedTemplate] = useState<{
     subject: string;
     body: string;
@@ -29,7 +32,8 @@ export function TemplatePreviewModal({
   const [testEmail, setTestEmail] = useState("");
 
   const extractVariables = (text: string): string[] => {
-    const variableRegex = /\{\{(\w+)\}\}/g;
+    // Use enhanced regex to support dot notation (e.g., contact.firstName, campaign.name)
+    const variableRegex = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
     const variables = new Set<string>();
     let match;
     while ((match = variableRegex.exec(text)) !== null) {
@@ -56,6 +60,7 @@ export function TemplatePreviewModal({
   useEffect(() => {
     console.log("Initializing variables for template:", template.id);
     const sampleData: Record<string, string> = {
+      // Legacy simple placeholders
       firstName: "John",
       lastName: "Doe",
       company: "Acme Corp",
@@ -64,6 +69,28 @@ export function TemplatePreviewModal({
       position: "Software Engineer",
       industry: "Technology",
       website: "acme.com",
+      // Contact placeholders
+      "contact.firstName": "Jane",
+      "contact.lastName": "Smith",
+      "contact.email": "jane.smith@example.com",
+      "contact.company": "Tech Corp",
+      "contact.phone": "+1 (555) 123-4567",
+      "contact.position": "Senior Recruiter",
+      // Campaign placeholders
+      "campaign.name": "Q4 Outreach Campaign",
+      "campaign.subject": "Partnership Opportunity",
+      // My/sender placeholders
+      "my.firstName": "Vijay",
+      "my.lastName": "Khot",
+      "my.email": "vijay@outreachly.com",
+      "my.company": "Outreachly",
+      "my.phone": "+1 (555) 987-6543",
+      "my.title": "Software Developer",
+      "my.linkedin": "https://linkedin.com/in/vijay-khot",
+      // Company placeholders (for the company being contacted)
+      "company.name": "TechCorp Inc",
+      "company.website": "techcorp.com",
+      "company.industry": "Software Technology",
     };
 
     // Create a fresh object for each template change
@@ -76,24 +103,41 @@ export function TemplatePreviewModal({
     // Clear any previous values and set new ones
     setVariableValues(initialValues);
 
+    // Initialize custom placeholder values
+    const initialCustomValues: Record<string, string> = {};
+    if (template.customPlaceholders && template.customPlaceholders.length > 0) {
+      template.customPlaceholders.forEach((placeholder) => {
+        initialCustomValues[placeholder] = `[${placeholder}]`;
+      });
+    }
+
+    console.log("Setting initial custom variable values:", initialCustomValues);
+    setCustomVariableValues(initialCustomValues);
+
     // Clear rendered template when template changes
     setRenderedTemplate(null);
     setError(null);
-  }, [template.id, uniqueVariables]); // Added template.id to ensure proper re-initialization
+  }, [template.id, template.customPlaceholders, uniqueVariables]); // Added template.customPlaceholders to dependency array
 
   const handleRenderTemplate = useCallback(async () => {
     console.log("Starting template render...");
     setIsLoading(true);
     setError(null);
     try {
+      // Combine standard variables with custom placeholder values
+      const personalizationData = {
+        ...variableValues,
+        ...customVariableValues,
+      };
+
       // Log the variables being sent to ensure they're correct
-      console.log("Rendering template with variables:", variableValues);
+      console.log("Rendering template with variables:", personalizationData);
       console.log("Template ID:", template.id, "Type:", typeof template.id);
 
       const response = await fetch(`/api/templates/${template.id}/render`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variables: variableValues }),
+        body: JSON.stringify({ variables: personalizationData }),
       });
 
       console.log("Response status:", response.status);
@@ -119,7 +163,7 @@ export function TemplatePreviewModal({
       setIsLoading(false);
       console.log("Template render finished");
     }
-  }, [template.id, variableValues]);
+  }, [template.id, variableValues, customVariableValues]); // Added customVariableValues to dependency array
 
   const handleVariableChange = (variable: string, value: string) => {
     console.log(
@@ -141,8 +185,28 @@ export function TemplatePreviewModal({
     setError(null);
   };
 
+  const handleCustomVariableChange = (placeholder: string, value: string) => {
+    console.log(
+      `Changing custom placeholder ${placeholder} from "${customVariableValues[placeholder]}" to: "${value}"`
+    );
+    setCustomVariableValues((prev) => {
+      const updated = {
+        ...prev,
+        [placeholder]: value,
+      };
+      console.log("Previous custom variable values:", prev);
+      console.log("Updated custom variable values:", updated);
+      return updated;
+    });
+
+    // Clear rendered template to force re-render
+    setRenderedTemplate(null);
+    setError(null);
+  };
+
   const resetToSampleData = () => {
     const sampleData: Record<string, string> = {
+      // Legacy simple placeholders
       firstName: "John",
       lastName: "Doe",
       company: "Acme Corp",
@@ -151,6 +215,28 @@ export function TemplatePreviewModal({
       position: "Software Engineer",
       industry: "Technology",
       website: "acme.com",
+      // Contact placeholders
+      "contact.firstName": "Jane",
+      "contact.lastName": "Smith",
+      "contact.email": "jane.smith@example.com",
+      "contact.company": "Tech Corp",
+      "contact.phone": "+1 (555) 123-4567",
+      "contact.position": "Senior Recruiter",
+      // Campaign placeholders
+      "campaign.name": "Q4 Outreach Campaign",
+      "campaign.subject": "Partnership Opportunity",
+      // My/sender placeholders
+      "my.firstName": "Vijay",
+      "my.lastName": "Khot",
+      "my.email": "vijay@outreachly.com",
+      "my.company": "Outreachly",
+      "my.phone": "+1 (555) 987-6543",
+      "my.title": "Software Developer",
+      "my.linkedin": "https://linkedin.com/in/vijay-khot",
+      // Company placeholders (for the company being contacted)
+      "company.name": "TechCorp Inc",
+      "company.website": "techcorp.com",
+      "company.industry": "Software Technology",
     };
 
     const resetValues: Record<string, string> = {};
@@ -158,6 +244,15 @@ export function TemplatePreviewModal({
       resetValues[variable] = sampleData[variable] || `[${variable}]`;
     });
     setVariableValues(resetValues);
+
+    // Reset custom placeholder values
+    const resetCustomValues: Record<string, string> = {};
+    if (template.customPlaceholders && template.customPlaceholders.length > 0) {
+      template.customPlaceholders.forEach((placeholder) => {
+        resetCustomValues[placeholder] = `[${placeholder}]`;
+      });
+    }
+    setCustomVariableValues(resetCustomValues);
   };
 
   const handleSendTestEmail = async () => {
@@ -232,13 +327,21 @@ export function TemplatePreviewModal({
       return;
     }
 
-    console.log("Auto-rendering after variable change...", variableValues);
+    console.log("Auto-rendering after variable change...", {
+      variableValues,
+      customVariableValues,
+    });
     const timer = setTimeout(() => {
       handleRenderTemplate();
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [variableValues, handleRenderTemplate, uniqueVariables.length]); // Added uniqueVariables.length to dependency array
+  }, [
+    variableValues,
+    customVariableValues,
+    handleRenderTemplate,
+    uniqueVariables.length,
+  ]); // Added customVariableValues to dependency array
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -390,7 +493,9 @@ export function TemplatePreviewModal({
                             onClick={() => {
                               console.log("Current state:", {
                                 variableValues,
+                                customVariableValues,
                                 uniqueVariables,
+                                customPlaceholders: template.customPlaceholders,
                                 renderedTemplate,
                                 isLoading,
                                 error,
@@ -430,6 +535,52 @@ export function TemplatePreviewModal({
                       </p>
                     )}
                   </div>
+
+                  {/* Custom Placeholder Values for Preview/Test */}
+                  {template.customPlaceholders &&
+                    template.customPlaceholders.length > 0 && (
+                      <div className="mb-6">
+                        <h3 className="mb-3 text-sm font-medium text-gray-900">
+                          Custom Placeholder Values for Preview/Test
+                        </h3>
+                        <div className="p-4 space-y-3 border border-orange-200 rounded-lg bg-orange-50">
+                          <p className="text-xs text-orange-800 mb-3">
+                            Set values for your custom placeholders. These will
+                            be used when generating the preview and sending test
+                            emails.
+                          </p>
+                          {template.customPlaceholders.map(
+                            (placeholderName) => (
+                              <div key={placeholderName}>
+                                <label className="block mb-1 text-xs font-medium text-orange-900">
+                                  {`{{${placeholderName}}}`}
+                                </label>
+                                <input
+                                  type="text"
+                                  value={
+                                    customVariableValues[placeholderName] || ""
+                                  }
+                                  onChange={(e) =>
+                                    handleCustomVariableChange(
+                                      placeholderName,
+                                      e.target.value
+                                    )
+                                  }
+                                  className="block w-full px-3 py-2 text-sm border border-orange-300 rounded-md shadow-sm focus:border-orange-500 focus:ring-orange-500 bg-white"
+                                  placeholder={`Enter value for ${placeholderName}`}
+                                  data-testid={`custom-placeholder-input-${placeholderName}`}
+                                />
+                                <div className="mt-1 text-xs text-orange-700">
+                                  Current value: &quot;
+                                  {customVariableValues[placeholderName] || ""}
+                                  &quot;
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                   {/* Preview Panel */}
                   <div

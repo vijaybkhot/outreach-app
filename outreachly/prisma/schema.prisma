@@ -20,14 +20,15 @@ model Contact {
 }
 
 model Template {
-  id        Int        @id @default(autoincrement())
-  name      String     @unique
-  subject   String
-  body      String     @db.Text
-  archived  Boolean    @default(false)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  campaigns Campaign[]
+  id                 Int        @id @default(autoincrement())
+  name               String     @unique
+  subject            String
+  body               String     @db.Text
+  customPlaceholders String[]   @default([])
+  archived           Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  campaigns          Campaign[]
 }
 
 model Campaign {
